@@ -37,7 +37,8 @@ export function createBundleRegistry({ baseUrl = "", store = null } = {}) {
         sizeBytes: Number(sizeBytes || 0),
         signature,
         releaseNotes,
-        downloadUrl: `${baseUrl}/agent/updates/${version}/bundle`,
+        // Relative so any host can prefix with the ControlPlane URL it already knows.
+        downloadUrl: `/agent/updates/${component}/${version}/bundle`,
         registeredAt: new Date().toISOString(),
       };
       bundles.set(k, record);

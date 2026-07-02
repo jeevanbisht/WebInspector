@@ -27,7 +27,7 @@ export async function main({ installRoot = process.env.WEBINSPECTOR_INSTALL_ROOT
   const platform = getPlatformProvider();
 
   const workerManager = createWorkerManager({ platform, paths: config.paths, intervals: config.intervals });
-  const updater = createUpdater({ platform, paths: config.paths, workerManager, healthGateMs: config.healthGateMs });
+  const updater = createUpdater({ platform, paths: config.paths, workerManager, healthGateMs: config.healthGateMs, controlPlaneUrl: identity.controlPlaneUrl });
 
   const installedVersions = {
     controlPlaneAgentVersion: await readInstalledVersion(config.paths.supervisorCurrent),

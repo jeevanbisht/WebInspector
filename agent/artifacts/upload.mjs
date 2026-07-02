@@ -30,10 +30,15 @@ export async function uploadArtifact(controlPlaneUrl, artifact, { authHeader, up
   });
   if (!res.ok) throw new Error(`artifact upload failed: ${res.status}`);
   const body = await res.json().catch(() => ({}));
+  const artifactUrl = body.url
+    ? body.url.startsWith("http")
+      ? body.url
+      : `${base}${body.url}`
+    : `${base}/artifacts/${body.artifactId || sha256}`;
 
   return makeDataRef({
     kind: artifact.kind,
-    url: body.url || `${base}/artifacts/${body.artifactId || sha256}`,
+    url: artifactUrl,
     sha256,
     sizeBytes: buf.length,
     jobId: artifact.jobId || null,

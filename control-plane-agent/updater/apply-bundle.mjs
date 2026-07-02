@@ -16,7 +16,7 @@ import { writeVersionMarker, readInstalledVersion } from "./version.mjs";
 import { rollbackTo } from "./rollback.mjs";
 import { waitForHealthy } from "../worker-manager/health.mjs";
 
-export function createUpdater({ platform, paths, workerManager, healthGateMs = 60000, logger = console } = {}) {
+export function createUpdater({ platform, paths, workerManager, healthGateMs = 60000, controlPlaneUrl = "", logger = console } = {}) {
   function layout(component) {
     if (component === "agent") {
       return { versionsDir: paths.agentVersionsDir, currentLink: paths.agentCurrent };
@@ -34,7 +34,8 @@ export function createUpdater({ platform, paths, workerManager, healthGateMs = 6
       const tmp = join(versionsDir, `_${version}.zip`);
 
       onProgress?.(`downloading ${component}@${version}`);
-      await platform.downloadFile(bundle.url, tmp, { sha256: bundle.sha256 });
+      const bundleUrl = bundle.url.startsWith("http") ? bundle.url : `${controlPlaneUrl || ""}${bundle.url}`;
+      await platform.downloadFile(bundleUrl, tmp, { sha256: bundle.sha256 });
       // TODO: verify bundle.signature against the trusted public key before extract.
 
       onProgress?.("extracting");

@@ -23,6 +23,8 @@ import { createRebootManager } from "../control/reboot-manager.mjs";
 import { createEnrollmentService } from "../control/enrollment.mjs";
 import { verifyNodeAuth } from "./auth.mjs";
 import { attachControlChannel } from "./channel.mjs";
+import { createBlobStore } from "../data/blob-store.mjs";
+import { createDataPlane } from "./data-plane.mjs";
 
 export function createControlPlaneServer(overrides = {}) {
   const config = loadControlPlaneConfig(overrides);
@@ -41,8 +43,10 @@ export function createControlPlaneServer(overrides = {}) {
   const enrollment = createEnrollmentService({ store, tokenTtlMs: config.security.enrollmentTokenTtlMs });
   const reboot = createRebootManager({ dispatcher, registry, store });
   const reconciler = createReconciler({ registry, dispatcher, updateManager });
+  const blobStore = createBlobStore({ dir: config.server.blobDir });
+  const dataPlane = createDataPlane({ config, bundleRegistry, blobStore, store });
 
-  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, reboot, reconciler };
+  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, reboot, reconciler, blobStore, dataPlane };
 
   const server = http.createServer((req, res) => route(req, res, services).catch((e) => fail(res, e)));
 
@@ -103,15 +107,30 @@ async function route(req, res, services) {
     return json(res, 202, await services.reboot.reboot(nodeName, await readJson(req).catch(() => ({}))));
   }
 
-  // data plane (node-authenticated)
-  if (method === "GET" && pathname.startsWith("/agent/updates/")) {
-    // GET /agent/updates/:version/bundle → stream the bundle file (TODO: from bundleDir)
-    return notImplemented(res, "bundle streaming");
+  // data plane
+  if (pathname.startsWith("/agent/updates/") && pathname.endsWith("/bundle")) {
+    const parts = pathname.split("/"); // ['', agent, updates, component, version, bundle]
+    if (parts.length === 6) {
+      const component = decodeURIComponent(parts[3]);
+      const version = decodeURIComponent(parts[4]);
+      // GET is public: bundles are integrity-checked (SHA-256), not secret, and the
+      // bootstrap fetches the supervisor bundle before it has a node credential.
+      if (method === "GET") return services.dataPlane.streamBundle(req, res, { component, version });
+      if (method === "PUT") return services.dataPlane.publishBundle(req, res, { component, version }); // TODO: operator auth
+    }
   }
-  if (method === "POST" && (pathname.startsWith("/api/results/") || pathname === "/api/artifacts/upload")) {
+  if (method === "GET" && pathname.startsWith("/artifacts/")) {
+    return services.dataPlane.serveArtifact(req, res, { id: decodeURIComponent(pathname.split("/")[2]) });
+  }
+  if (method === "POST" && pathname === "/api/artifacts/upload") {
     const auth = verifyNodeAuth(req, services.enrollment);
     if (!auth.ok) return json(res, 401, { error: "invalid node credential" });
-    return notImplemented(res, "data-plane ingest");
+    return services.dataPlane.ingestArtifact(req, res, auth);
+  }
+  if (method === "POST" && pathname.startsWith("/api/results/")) {
+    const auth = verifyNodeAuth(req, services.enrollment);
+    if (!auth.ok) return json(res, 401, { error: "invalid node credential" });
+    return services.dataPlane.ingestResult(req, res, decodeURIComponent(pathname.split("/")[3]));
   }
 
   // portal static

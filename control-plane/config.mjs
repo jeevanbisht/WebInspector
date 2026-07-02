@@ -9,6 +9,7 @@ export const DEFAULT_CONTROL_PLANE_CONFIG = Object.freeze({
     host: "0.0.0.0",
     portalDir: "../portal",
     bundleDir: "./state/bundles",
+    blobDir: "./state/blobs",
   },
   security: {
     // Node credentials authenticate the control channel + data plane. Operator auth for

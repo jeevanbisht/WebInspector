@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { makeDataRef } from "../../shared/protocol/data-plane.mjs";
 
-export async function uploadArtifact(controlPlaneUrl, artifact, { authHeader, uploadTicket } = {}) {
+export async function uploadArtifact(controlPlaneUrl, artifact, { nodeId, credential, uploadTicket } = {}) {
   const buf = await readFile(artifact.path);
   const sha256 = artifact.sha256 || createHash("sha256").update(buf).digest("hex");
   const base = controlPlaneUrl.replace(/\/$/, "");
@@ -23,7 +23,9 @@ export async function uploadArtifact(controlPlaneUrl, artifact, { authHeader, up
       "x-artifact-kind": artifact.kind,
       "x-artifact-sha256": sha256,
       ...(artifact.jobId ? { "x-job-id": artifact.jobId } : {}),
-      ...(authHeader ? { authorization: authHeader } : {}),
+      // Node auth for the data plane: credential in the bearer, nodeId in its own header.
+      ...(credential ? { authorization: `Bearer ${credential}` } : {}),
+      ...(nodeId ? { "x-node-id": nodeId } : {}),
       ...(uploadTicket?.headers || {}),
     },
     body: buf,

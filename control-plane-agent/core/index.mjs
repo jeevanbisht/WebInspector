@@ -26,7 +26,21 @@ export async function main({ installRoot = process.env.WEBINSPECTOR_INSTALL_ROOT
   const identity = JSON.parse(await readFile(config.paths.identityFile, "utf8"));
   const platform = getPlatformProvider();
 
-  const workerManager = createWorkerManager({ platform, paths: config.paths, intervals: config.intervals });
+  const workerEnv = {
+    ...process.env,
+    WEBINSPECTOR_CONTROLPLANE_URL: identity.controlPlaneUrl,
+    WEBINSPECTOR_NODE_ID: identity.nodeId,
+    WEBINSPECTOR_NODE_CREDENTIAL: identity.nodeCredential,
+  };
+  const workerManager = createWorkerManager({
+    platform,
+    paths: config.paths,
+    intervals: config.intervals,
+    env: workerEnv,
+    // Forward each worker result UP the control channel as a small summary; bulk bodies +
+    // artifacts already went to the data plane directly from the worker.
+    onResult: (msg) => connection.sendUp("result", summarizeResult(msg)),
+  });
   const updater = createUpdater({ platform, paths: config.paths, workerManager, healthGateMs: config.healthGateMs, controlPlaneUrl: identity.controlPlaneUrl });
 
   const installedVersions = {
@@ -82,4 +96,18 @@ if (process.argv[1]?.endsWith("core/index.mjs") || process.argv[1]?.endsWith("in
     console.error(`[supervisor] fatal: ${e.message}`);
     process.exit(1);
   });
+}
+
+// Trim a worker result to a small control-plane summary (bulk stays on the data plane).
+function summarizeResult(msg) {
+  const r = msg.result || {};
+  return {
+    jobId: msg.jobId || null,
+    stage: r.stage || null,
+    nodeName: r.nodeName || null,
+    url: r.url || null,
+    ok: r.ok ?? null,
+    reason: r.reason || null,
+    error: msg.error || null,
+  };
 }

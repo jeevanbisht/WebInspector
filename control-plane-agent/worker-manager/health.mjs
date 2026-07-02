@@ -16,8 +16,8 @@ export async function waitForHealthy({ workerManager, timeoutMs = 60000, pollMs 
 }
 
 export async function isWorkerHealthy(workerManager) {
-  // Minimal signal for now: the process is running. Replace with a real readiness probe.
-  return workerManager.isRunning();
+  // Real readiness: the worker emitted its `ready` line on stdout after (re)start.
+  return workerManager.isReady ? workerManager.isReady() : workerManager.isRunning();
 }
 
 function sleep(ms) {

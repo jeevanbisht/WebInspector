@@ -12,9 +12,10 @@ import { browserValidate } from "../browser/browser-validation.mjs";
 import { collectMetadata } from "../metadata/local-network.mjs";
 import { uploadArtifact } from "../artifacts/upload.mjs";
 
-export async function runJob(job, { controlPlaneUrl, authHeader } = {}) {
+export async function runJob(job, { controlPlaneUrl, nodeId, credential } = {}) {
   if (!job?.url) throw new Error("job requires a url");
-  const metadata = await collectMetadata().catch(() => ({}));
+  const skipLookups = process.env.WEBINSPECTOR_SKIP_METADATA_LOOKUPS === "1";
+  const metadata = await collectMetadata({ allowPublicIpLookup: !skipLookups, allowAzureLookup: !skipLookups }).catch(() => ({}));
 
   if (job.stage === "initial_test" || !job.stage) {
     const probe = await initialTest(job.url);
@@ -36,7 +37,7 @@ export async function runJob(job, { controlPlaneUrl, authHeader } = {}) {
     const artifactRefs = [];
     if (controlPlaneUrl) {
       for (const artifact of validation.artifacts || []) {
-        artifactRefs.push(await uploadArtifact(controlPlaneUrl, artifact, { authHeader }).catch(() => null));
+        artifactRefs.push(await uploadArtifact(controlPlaneUrl, artifact, { nodeId, credential }).catch(() => null));
       }
     }
     return {

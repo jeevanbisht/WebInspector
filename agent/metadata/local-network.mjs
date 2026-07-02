@@ -26,10 +26,10 @@ export function getLocalNetwork() {
 }
 
 /** Full metadata snapshot (used by the job-runner for every result). */
-export async function collectMetadata({ allowPublicIpLookup = true } = {}) {
+export async function collectMetadata({ allowPublicIpLookup = true, allowAzureLookup = true } = {}) {
   const [publicIp, azure] = await Promise.all([
     getPublicIp({ allowLookup: allowPublicIpLookup }).catch(() => ({ publicIp: null })),
-    getAzureMetadata().catch(() => null),
+    allowAzureLookup ? getAzureMetadata().catch(() => null) : Promise.resolve(null),
   ]);
   return {
     ...getLocalNetwork(),

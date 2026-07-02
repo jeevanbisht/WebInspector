@@ -27,7 +27,11 @@ export async function main() {
       continue; // ignore malformed lines
     }
     try {
-      const result = await runJob(job, { controlPlaneUrl: process.env.WEBINSPECTOR_CONTROLPLANE_URL, authHeader: process.env.WEBINSPECTOR_NODE_AUTH });
+      const result = await runJob(job, {
+        controlPlaneUrl: process.env.WEBINSPECTOR_CONTROLPLANE_URL,
+        nodeId: process.env.WEBINSPECTOR_NODE_ID,
+        credential: process.env.WEBINSPECTOR_NODE_CREDENTIAL,
+      });
       emit({ type: "result", jobId: job.id, result });
     } catch (e) {
       emit({ type: "result", jobId: job.id, error: e.message });

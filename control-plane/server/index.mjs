@@ -22,6 +22,7 @@ import { createBundleRegistry } from "../control/bundle-registry.mjs";
 import { createRebootManager } from "../control/reboot-manager.mjs";
 import { createEnrollmentService } from "../control/enrollment.mjs";
 import { verifyNodeAuth } from "./auth.mjs";
+import { attachControlChannel } from "./channel.mjs";
 
 export function createControlPlaneServer(overrides = {}) {
   const config = loadControlPlaneConfig(overrides);
@@ -45,16 +46,8 @@ export function createControlPlaneServer(overrides = {}) {
 
   const server = http.createServer((req, res) => route(req, res, services).catch((e) => fail(res, e)));
 
-  // Control channel lives on the same port via HTTP upgrade.
-  server.on("upgrade", (req, socket, head) => {
-    if (new URL(req.url, baseUrl).pathname === "/agent/channel") {
-      // TODO: complete WS handshake; on open, authenticate via verifyNodeAuth, then
-      // registry.attachSession(nodeId, session) and pump envelopes to dispatcher/registry.
-      socket.destroy(); // placeholder until WS transport is implemented
-    } else {
-      socket.destroy();
-    }
-  });
+  // Control channel lives on the SAME port via HTTP upgrade (WebSocket).
+  const channel = attachControlChannel(server, services, { baseUrl });
 
   return {
     services,
@@ -64,6 +57,7 @@ export function createControlPlaneServer(overrides = {}) {
     },
     close() {
       reconciler.stop();
+      channel.close();
       return new Promise((resolve) => server.close(resolve));
     },
   };

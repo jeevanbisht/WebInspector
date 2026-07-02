@@ -7,11 +7,13 @@
 //
 // TODO: real WS client (ws) + long-poll fallback (GET /agent/poll, POST /agent/push).
 
+import WebSocket from "ws";
 import { upMessage, assertEnvelope } from "../../shared/protocol/control-channel.mjs";
 
 export function createConnection({ controlPlaneUrl, controlChannelPath = "/agent/channel", nodeId, nodeCredential, intervals = {}, onMessage, onOpen, onClose, logger = console } = {}) {
   const wsUrl = toWs(`${controlPlaneUrl}${controlChannelPath}`);
-  const authHeader = `Bearer ${nodeId}:${nodeCredential}`;
+  const headers = { authorization: `Bearer ${nodeCredential}`, "x-node-id": nodeId };
+  const outbox = [];
   let socket = null;
   let closed = false;
   let attempt = 0;
@@ -25,10 +27,33 @@ export function createConnection({ controlPlaneUrl, controlChannelPath = "/agent
 
   function connect() {
     if (closed) return;
-    // TODO: open a real WebSocket to `wsUrl` with header `authorization: authHeader`.
-    // On open: attempt = 0; onOpen?.(). On message: onMessage?.(assertEnvelope(JSON.parse(data))).
-    // On close/error: schedule reconnect via setTimeout(connect, backoff()); onClose?.().
-    logger.info?.(`[connection] would connect ${wsUrl} (auth ${nodeId})`);
+    const ws = new WebSocket(wsUrl, { headers });
+    socket = ws;
+    ws.on("open", () => {
+      attempt = 0;
+      flush();
+      onOpen?.();
+    });
+    ws.on("message", (data) => {
+      let msg;
+      try {
+        msg = assertEnvelope(JSON.parse(data.toString()));
+      } catch {
+        return;
+      }
+      onMessage?.(msg);
+    });
+    ws.on("close", () => {
+      socket = null;
+      onClose?.();
+      if (!closed) setTimeout(connect, backoff());
+    });
+    ws.on("error", (e) => logger.warn?.(`[connection] ws error: ${e.message}`));
+  }
+
+  function flush() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    while (outbox.length) socket.send(JSON.stringify(outbox.shift()));
   }
 
   return {
@@ -39,13 +64,12 @@ export function createConnection({ controlPlaneUrl, controlChannelPath = "/agent
     /** Send an UP envelope. */
     send(envelope) {
       assertEnvelope(envelope);
-      if (!socket) {
-        // TODO: buffer until reconnect (bounded), so results/heartbeats aren't lost.
-        logger.warn?.("[connection] send while disconnected (buffered)");
-        return false;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(envelope));
+        return true;
       }
-      socket.send(JSON.stringify(envelope));
-      return true;
+      if (outbox.length < 1000) outbox.push(envelope); // bounded buffer until (re)connect
+      return false;
     },
     sendUp(type, payload, opts) {
       return this.send(upMessage(type, payload, { nodeName: nodeId, ...opts }));
@@ -55,12 +79,12 @@ export function createConnection({ controlPlaneUrl, controlChannelPath = "/agent
       socket?.close?.();
       socket = null;
     },
-    get authHeader() {
-      return authHeader;
+    get headers() {
+      return headers;
     },
   };
 }
 
 function toWs(httpUrl) {
-  return httpUrl.replace(/^http/i, (m) => (m.toLowerCase() === "http" ? "ws" : "ws"));
+  return httpUrl.replace(/^https:/i, "wss:").replace(/^http:/i, "ws:");
 }

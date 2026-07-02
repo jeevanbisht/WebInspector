@@ -1,0 +1,7 @@
+{
+  "subscriptionId": "<your-subscription-id>",
+  "resourceGroup": "WebInspector",
+  "tenant": "microsoft.onmicrosoft.com",
+  "location": "westus3",
+  "_note": "Copy to infra.local.json (git-ignored) and fill in real values. Do not commit real subscription IDs to this public repo."
+}

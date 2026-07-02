@@ -9,17 +9,18 @@ export function verifyNodeAuth(req, enrollment) {
   const header = req.headers?.authorization || "";
   const m = /^Bearer\s+(.+)$/i.exec(header);
   if (!m) return { ok: false, reason: "missing bearer credential" };
-  const idx = m[1].indexOf(":");
-  if (idx < 0) return { ok: false, reason: "malformed node credential" };
-  const nodeId = m[1].slice(0, idx);
-  const credential = m[1].slice(idx + 1);
+  const credential = m[1].trim();
+  // nodeId (nodeType:nodeName) carries a colon, so it travels in its own header rather than
+  // being packed into the bearer value.
+  const nodeId = req.headers?.["x-node-id"];
+  if (!nodeId) return { ok: false, reason: "missing x-node-id" };
   if (!enrollment.verifyCredential(nodeId, credential)) return { ok: false, reason: "unknown or revoked node credential" };
   return { ok: true, nodeId };
 }
 
-/** Format the header a node/agent sends. */
-export function nodeAuthHeader(nodeId, credential) {
-  return `Bearer ${nodeId}:${credential}`;
+/** Headers a node/agent sends on the control channel + data plane. */
+export function nodeAuthHeaders(nodeId, credential) {
+  return { authorization: `Bearer ${credential}`, "x-node-id": nodeId };
 }
 
 // TODO: verifyOperatorAuth(req) — session/OIDC/PAT for Portal-driven mutations.

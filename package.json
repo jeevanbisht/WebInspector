@@ -10,9 +10,13 @@
     "supervisor": "node control-plane-agent/core/index.mjs",
     "worker": "node agent/core/index.mjs",
     "build-bundle": "node deploy/scripts/build-bundle.mjs",
-    "install:control-plane": "powershell -NoProfile -File deploy/windows/install-control-plane.ps1"
+    "install:control-plane": "powershell -NoProfile -File deploy/windows/install-control-plane.ps1",
+    "test": "node --test \"test/**/*.test.mjs\""
   },
   "workspaces": [],
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
   "optionalDependencies": {
     "playwright": "^1.49.0"
   }

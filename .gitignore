@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# build output / update bundles
+dist/
+
+# runtime durable state — never commit (repo-root only; NOT the control-plane/state source)
+/state/
+*.log
+
+# secrets / machine-local config
+.env
+.env.*
+*.local.json
+node-identity.json
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,85 @@
+// ControlPlane Agent (supervisor) entrypoint + loop.
+//
+// Boot sequence:
+//   1. load node identity (written by the bootstrap at enrollment)
+//   2. select the platform provider (Windows first)
+//   3. bring up the worker Agent at the installed version
+//   4. connect the control channel; on open → hello; then heartbeat
+//   5. route inbound commands idempotently; report results up
+//
+// This is deliberately thin: heavy lifting lives in worker-manager, updater, and platform.
+
+import { readFile } from "node:fs/promises";
+import { loadSupervisorConfig, defaultInstallRoot } from "../config.mjs";
+import { getPlatformProvider } from "../platform/index.mjs";
+import { createConnection } from "./connection.mjs";
+import { buildHello } from "./register.mjs";
+import { startHeartbeat } from "./heartbeat.mjs";
+import { createWorkerManager } from "../worker-manager/lifecycle.mjs";
+import { createUpdater } from "../updater/apply-bundle.mjs";
+import { readInstalledVersion } from "../updater/version.mjs";
+import { createCommandRouter } from "../commands/index.mjs";
+import { isDownMessage } from "../../shared/protocol/control-channel.mjs";
+
+export async function main({ installRoot = process.env.WEBINSPECTOR_INSTALL_ROOT || defaultInstallRoot() } = {}) {
+  const config = loadSupervisorConfig(installRoot);
+  const identity = JSON.parse(await readFile(config.paths.identityFile, "utf8"));
+  const platform = getPlatformProvider();
+
+  const workerManager = createWorkerManager({ platform, paths: config.paths, intervals: config.intervals });
+  const updater = createUpdater({ platform, paths: config.paths, workerManager, healthGateMs: config.healthGateMs });
+
+  const installedVersions = {
+    controlPlaneAgentVersion: await readInstalledVersion(config.paths.supervisorCurrent),
+    agentVersion: await readInstalledVersion(config.paths.agentCurrent),
+  };
+
+  // Ensure the worker is running before we advertise readiness.
+  await workerManager.ensureRunning(installedVersions.agentVersion);
+
+  const connection = createConnection({
+    controlPlaneUrl: identity.controlPlaneUrl,
+    controlChannelPath: identity.controlChannelUrl || "/agent/channel",
+    nodeId: identity.nodeId,
+    nodeCredential: identity.nodeCredential,
+    intervals: config.intervals,
+    onOpen: () => connection.sendUp("hello", buildHello({ identity, installedVersions })),
+    onMessage: (msg) => {
+      if (isDownMessage(msg) && msg.type === "command") router.handle(msg);
+    },
+  });
+
+  const router = createCommandRouter({ platform, workerManager, updater, connection, identity });
+
+  const heartbeat = startHeartbeat({
+    connection,
+    intervalMs: config.intervals.heartbeatMs,
+    getSnapshot: () => ({
+      nodeType: identity.nodeType,
+      status: workerManager.isDraining() ? "draining" : "ready",
+      versions: installedVersions,
+      metadata: { worker: workerManager.status() },
+    }),
+  });
+
+  connection.start();
+  heartbeat.start();
+
+  const shutdown = () => {
+    heartbeat.stop();
+    connection.close();
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
+  return { config, identity, connection, workerManager, updater, router, heartbeat };
+}
+
+// CLI entry (the installed service runs this).
+if (process.argv[1]?.endsWith("core/index.mjs") || process.argv[1]?.endsWith("index.mjs")) {
+  main().catch((e) => {
+    console.error(`[supervisor] fatal: ${e.message}`);
+    process.exit(1);
+  });
+}

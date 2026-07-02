@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebInspector — ControlPlane</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>WebInspector <span class="muted">ControlPlane</span></h1>
+    <nav>
+      <button data-view="nodes" class="active">Nodes</button>
+      <button data-view="onboarding">Onboarding</button>
+      <button data-view="runs">Runs</button>
+      <button data-view="events">Events</button>
+    </nav>
+    <span id="health" class="pill">…</span>
+  </header>
+
+  <main>
+    <section id="view-nodes" class="view">
+      <div class="toolbar">
+        <h2>Nodes</h2>
+        <button id="refresh-nodes">Refresh</button>
+      </div>
+      <table id="nodes-table">
+        <thead>
+          <tr><th>Node</th><th>Type</th><th>Status</th><th>Agent ver</th><th>Supervisor ver</th><th>Public IP</th><th>Heartbeat</th><th>Actions</th></tr>
+        </thead>
+        <tbody><tr><td colspan="8" class="muted">loading…</td></tr></tbody>
+      </table>
+    </section>
+
+    <section id="view-onboarding" class="view hidden">
+      <h2>Onboard a VM (zero-touch)</h2>
+      <label>Node type
+        <select id="enroll-type">
+          <option>azure_direct</option>
+          <option>gsa_remotenet</option>
+          <option>gsa_client</option>
+          <option>cloudflare_client</option>
+          <option>external_direct</option>
+        </select>
+      </label>
+      <button id="issue-token">Issue enrollment token</button>
+      <p class="muted">Run this on the fresh VM (Administrator PowerShell). Token is short-lived and single-use.</p>
+      <pre id="enroll-cmd" class="code">…</pre>
+    </section>
+
+    <section id="view-runs" class="view hidden">
+      <h2>Runs</h2>
+      <p class="muted">Queue URLs and watch arm progress. (Wired once ControlPlane run APIs land.)</p>
+    </section>
+
+    <section id="view-events" class="view hidden">
+      <h2>Events</h2>
+      <p class="muted">Live event stream. (Wired once ControlPlane event API lands.)</p>
+    </section>
+  </main>
+
+  <script src="/assets/app.js" type="module"></script>
+</body>
+</html>

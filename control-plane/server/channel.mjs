@@ -106,9 +106,11 @@ function handleInbound(services, session, msg) {
       dispatcher.onCommandResult(session.nodeName, p);
       break;
     case "result":
+      services.orchestrator?.onResult(session.nodeName, p);
+      break;
     case "result_ref":
     case "artifact_ref": {
-      const pr = store?.put?.("results", `${p.jobId || Date.now()}-${session.nodeName}`, { ...p, nodeName: session.nodeName });
+      const pr = store?.put?.("artifacts", `${p.sha256 || Date.now()}-${session.nodeName}`, { ...p, nodeName: session.nodeName });
       pr?.catch?.(() => {});
       break;
     }

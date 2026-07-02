@@ -25,6 +25,9 @@ import { verifyNodeAuth } from "./auth.mjs";
 import { attachControlChannel } from "./channel.mjs";
 import { createBlobStore } from "../data/blob-store.mjs";
 import { createDataPlane } from "./data-plane.mjs";
+import { createNodeSelection } from "../scheduler/node-selection.mjs";
+import { createSitePacket } from "../reporting/site-packet.mjs";
+import { createRunOrchestrator } from "../scheduler/run-orchestrator.mjs";
 
 export function createControlPlaneServer(overrides = {}) {
   const config = loadControlPlaneConfig(overrides);
@@ -45,8 +48,11 @@ export function createControlPlaneServer(overrides = {}) {
   const reconciler = createReconciler({ registry, dispatcher, updateManager });
   const blobStore = createBlobStore({ dir: config.server.blobDir });
   const dataPlane = createDataPlane({ config, bundleRegistry, blobStore, store });
+  const selection = createNodeSelection({ registry, config });
+  const sitePacket = createSitePacket({ store, artifacts: blobStore });
+  const orchestrator = createRunOrchestrator({ store, registry, dispatcher, selection, sitePacket });
 
-  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, reboot, reconciler, blobStore, dataPlane };
+  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, reboot, reconciler, blobStore, dataPlane, selection, orchestrator };
 
   const server = http.createServer((req, res) => route(req, res, services).catch((e) => fail(res, e)));
 
@@ -100,6 +106,29 @@ async function route(req, res, services) {
 
   // read APIs (Portal)
   if (method === "GET" && pathname === "/api/nodes") return json(res, 200, { nodes: services.registry.listAll() });
+
+  // runs API (the run pipeline)
+  if (method === "POST" && pathname === "/api/runs") {
+    const body = await readJson(req).catch(() => ({}));
+    const run = services.orchestrator.createRun(body);
+    return json(res, 201, { runId: run.id, run });
+  }
+  if (method === "GET" && pathname === "/api/runs") return json(res, 200, { runs: services.orchestrator.listRuns() });
+  if (pathname.startsWith("/api/runs/")) {
+    const parts = pathname.split("/"); // ['', api, runs, runId, (urls)?]
+    const runId = decodeURIComponent(parts[3]);
+    if (method === "POST" && parts.length === 5 && parts[4] === "urls") {
+      try {
+        return json(res, 202, services.orchestrator.queueUrl(runId, (await readJson(req)).url));
+      } catch (e) {
+        return json(res, e.httpStatus || 400, { error: e.message });
+      }
+    }
+    if (method === "GET" && parts.length === 4) {
+      const details = services.orchestrator.getRun(runId);
+      return details ? json(res, 200, details) : json(res, 404, { error: "run not found" });
+    }
+  }
 
   // command APIs (Portal → agent). Node-authenticated data/control below.
   if (method === "POST" && pathname.startsWith("/api/nodes/") && pathname.endsWith("/reboot")) {

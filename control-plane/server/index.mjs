@@ -36,6 +36,7 @@ import { memoryAdapter } from "../state/adapters/memory.mjs";
 import { sqliteAdapter } from "../state/adapters/sqlite.mjs";
 import { createFinalReport } from "../reporting/final-report.mjs";
 import { createRateLimiter } from "./rate-limit.mjs";
+import { renderMetrics } from "./metrics.mjs";
 
 export function createControlPlaneServer(overrides = {}) {
   const config = loadControlPlaneConfig(overrides);
@@ -191,6 +192,14 @@ async function route(req, res, services) {
   if (method === "GET" && pathname === "/api/nodes") {
     if (!requireOperator()) return;
     return json(res, 200, { nodes: services.registry.listAll() });
+  }
+
+  // Prometheus metrics (operator-gated; scrape config supplies the bearer token).
+  if (method === "GET" && pathname === "/api/metrics") {
+    if (!requireOperator()) return;
+    const body = renderMetrics({ registry: services.registry, orchestrator: services.orchestrator });
+    res.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8", "content-length": Buffer.byteLength(body) });
+    return res.end(body);
   }
 
   // runs API (the run pipeline)

@@ -1,5 +1,7 @@
 # WebInspector — Rewire
 
+[![CI](https://github.com/jeevanbisht/WebInspector/actions/workflows/ci.yml/badge.svg)](https://github.com/jeevanbisht/WebInspector/actions/workflows/ci.yml)
+
 A re-architecture of CheckWebHealth/TestingInfra into a **control-plane + managed-agent**
 model with **central control, single-port transport, push updates, and remote reboot**.
 

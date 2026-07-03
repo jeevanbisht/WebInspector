@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # node:sqlite (used by the SQLite adapter + tests) requires Node >= 22; 24 matches dev.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The browser-validation integration test uses bundled chromium (skips gracefully if
+      # unavailable); install it + its OS deps so the test actually runs in CI.
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run tests
+        run: npm test

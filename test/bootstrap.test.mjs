@@ -7,6 +7,8 @@
 import test from "node:test";
 import assert from "node:assert";
 import { createControlPlaneServer } from "../control-plane/server/index.mjs";
+import { trustedPublisherKeys, assertBundleTrusted } from "../bootstrap/bootstrap.mjs";
+import { generateBundleSigningKeypair, signBundle } from "../shared/protocol/bundle-signing.mjs";
 
 test("bootstrap: serves the Windows + Linux entrypoints and the orchestrator", async () => {
   const PORT = 8858;
@@ -38,4 +40,26 @@ test("bootstrap: serves the Windows + Linux entrypoints and the orchestrator", a
   } finally {
     await app.close();
   }
+});
+
+test("bootstrap: assertBundleTrusted enforces the publisher signature only when keys are configured", () => {
+  const { publicKeyPem, privateKeyPem } = generateBundleSigningKeypair();
+  const other = generateBundleSigningKeypair();
+  const base = { component: "control-plane-agent", version: "3.1.0" };
+  const bundle = { sha256: "abc123", signature: signBundle({ ...base, sha256: "abc123", privateKey: privateKeyPem }) };
+
+  // no keys configured -> unenforced (SHA-256 already checked on download)
+  assert.doesNotThrow(() => assertBundleTrusted({ ...base, bundle: { sha256: "abc123", signature: "AAAA" }, trustedKeys: [] }));
+  // valid signature under a trusted key -> ok
+  assert.doesNotThrow(() => assertBundleTrusted({ ...base, bundle, trustedKeys: [publicKeyPem] }));
+  // wrong key / missing signature -> refuse to install
+  assert.throws(() => assertBundleTrusted({ ...base, bundle, trustedKeys: [other.publicKeyPem] }), /signature verification/);
+  assert.throws(() => assertBundleTrusted({ ...base, bundle: { sha256: "abc123", signature: null }, trustedKeys: [publicKeyPem] }), /signature verification/);
+});
+
+test("bootstrap: trustedPublisherKeys decodes base64 PEMs from the environment", () => {
+  const { publicKeyPem } = generateBundleSigningKeypair();
+  const b64 = Buffer.from(publicKeyPem, "utf8").toString("base64");
+  assert.deepEqual(trustedPublisherKeys({ WEBINSPECTOR_BUNDLE_PUBLISHER_KEYS_B64: b64 }), [publicKeyPem]);
+  assert.deepEqual(trustedPublisherKeys({}), []);
 });

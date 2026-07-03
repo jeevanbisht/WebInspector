@@ -15,6 +15,7 @@
 import os from "node:os";
 import { join } from "node:path";
 import { getPlatformProvider } from "../control-plane-agent/platform/index.mjs";
+import { verifyBundleSignature } from "../shared/protocol/bundle-signing.mjs";
 import { enrollNode, persistIdentity } from "./enroll.mjs";
 
 function parseArgs(argv = process.argv.slice(2)) {
@@ -52,7 +53,9 @@ export async function bootstrap(opts = {}) {
   const bundlePath = join(installRoot, "control-plane-agent", `supervisor-${manifest.supervisor.version}.zip`);
   const url = bundle.url.startsWith("http") ? bundle.url : `${controlPlaneUrl}${bundle.url}`;
   await platform.downloadFile(url, bundlePath, { sha256: bundle.sha256 });
-  // TODO: verify bundle.signature against the ControlPlane's trusted public key.
+  // Supply-chain: verify the publisher signature before extracting the very first supervisor
+  // (enforced when WEBINSPECTOR_BUNDLE_PUBLISHER_KEYS_B64 is set; SHA-256 is always checked).
+  assertBundleTrusted({ component: "control-plane-agent", version: manifest.supervisor.version, bundle, trustedKeys: trustedPublisherKeys() });
   await platform.extractBundle(bundlePath, versionsDir);
   await platform.swapCurrent(join(installRoot, "control-plane-agent", "current"), versionsDir);
 
@@ -77,6 +80,25 @@ export async function bootstrap(opts = {}) {
 
 function defaultInstallRoot() {
   return process.platform === "win32" ? "C:\\WebInspector" : "/opt/webinspector";
+}
+
+// Trusted bundle-publisher public keys (ed25519 PEM), from WEBINSPECTOR_BUNDLE_PUBLISHER_KEYS_B64
+// (comma-separated base64 PEMs) — the same trust anchor the ControlPlane enforces on publish.
+export function trustedPublisherKeys(env = process.env) {
+  const b64 = env.WEBINSPECTOR_BUNDLE_PUBLISHER_KEYS_B64;
+  if (!b64) return [];
+  return b64
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((x) => Buffer.from(x, "base64").toString("utf8"));
+}
+
+// Refuse an untrusted supervisor bundle. Unenforced (no-op) when no trusted keys are configured.
+export function assertBundleTrusted({ component, version, bundle, trustedKeys } = {}) {
+  if (!trustedKeys?.length) return;
+  const ok = verifyBundleSignature({ component, version, sha256: bundle?.sha256, signature: bundle?.signature, publicKeys: trustedKeys });
+  if (!ok) throw new Error(`supervisor bundle ${component}@${version} failed signature verification; refusing to install`);
 }
 
 async function getJson(url) {

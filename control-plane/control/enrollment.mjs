@@ -10,8 +10,9 @@
 // Best practices: tokens are single-use, TTL-bounded, scoped, and revocable; the returned
 // node credential is what the supervisor authenticates with (never the enrollment token).
 //
-// TODO: replace the opaque node token with an issued mTLS client certificate; persist
-// tokens + credentials in the durable state store.
+// Tokens + credentials are hashed at rest and WRITTEN THROUGH to the durable store, then
+// re-hydrated on startup (load()), so a restarted ControlPlane still recognizes enrolled nodes.
+// TODO: replace the opaque node token with an issued mTLS client certificate.
 
 import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
 import { assertNodeIdentity } from "../../shared/contracts/nodes.mjs";
@@ -21,8 +22,18 @@ import { assertNodeIdentity } from "../../shared/contracts/nodes.mjs";
 const sha256Hex = (v) => createHash("sha256").update(String(v)).digest("hex");
 
 export function createEnrollmentService({ store = null, controlChannelPath = "/agent/channel", tokenTtlMs = 15 * 60 * 1000 } = {}) {
-  const tokens = new Map(); // tokenHash -> { nodeType, expiresAt, oneTimeUse, used, issuedBy }
-  const credentials = new Map(); // nodeId -> { nodeName, nodeType, credentialHash, issuedAt, revoked }
+  const tokens = new Map(); // tokenHash -> { tokenHash, nodeType, expiresAt, oneTimeUse, used, issuedBy }
+  const credentials = new Map(); // nodeId -> { nodeId, nodeName, nodeType, credentialHash, issuedAt, revoked }
+
+  // Best-effort write-through to the durable store so identity survives a restart.
+  const persist = (table, id, rec) => {
+    const p = store?.put?.(table, id, rec);
+    p?.catch?.(() => {});
+  };
+  const remove = (table, id) => {
+    const p = store?.delete?.(table, id);
+    p?.catch?.(() => {});
+  };
 
   function issueToken({ nodeType, ttlMs = tokenTtlMs, oneTimeUse = true, issuedBy = null } = {}) {
     const token = `enr_${randomBytes(24).toString("base64url")}`;
@@ -34,14 +45,16 @@ export function createEnrollmentService({ store = null, controlChannelPath = "/a
       issuedBy,
       issuedAt: new Date().toISOString(),
     };
-    tokens.set(sha256Hex(token), record); // hashed at rest; raw token never stored
-    // TODO: persist via store
+    const tokenHash = sha256Hex(token); // hashed at rest; raw token never stored
+    tokens.set(tokenHash, { tokenHash, ...record });
+    persist("enrollments", tokenHash, { tokenHash, ...record });
     return { token, expiresAt: new Date(record.expiresAt).toISOString(), nodeType: record.nodeType };
   }
 
   /** Verify + consume a token and mint a node credential. Throws on any policy failure. */
   function enroll({ enrollmentToken, identity } = {}) {
-    const rec = enrollmentToken ? tokens.get(sha256Hex(enrollmentToken)) : null;
+    const tokenHash = enrollmentToken ? sha256Hex(enrollmentToken) : null;
+    const rec = tokenHash ? tokens.get(tokenHash) : null;
     if (!rec) throw enrollError(401, "unknown enrollment token");
     if (Date.now() > rec.expiresAt) throw enrollError(401, "enrollment token expired");
     if (rec.oneTimeUse && rec.used) throw enrollError(409, "enrollment token already used");
@@ -52,11 +65,13 @@ export function createEnrollmentService({ store = null, controlChannelPath = "/a
     }
 
     rec.used = true; // consume (single-use)
+    persist("enrollments", tokenHash, rec);
 
     const nodeId = `${nodeType}:${nodeName}`;
     const credential = `nodecred_${randomBytes(32).toString("base64url")}`; // TODO: mTLS cert
-    credentials.set(nodeId, { nodeName, nodeType, credentialHash: sha256Hex(credential), issuedAt: new Date().toISOString(), revoked: false });
-    // TODO: persist via store
+    const credRec = { nodeId, nodeName, nodeType, credentialHash: sha256Hex(credential), issuedAt: new Date().toISOString(), revoked: false };
+    credentials.set(nodeId, credRec);
+    persist("credentials", nodeId, credRec);
 
     return {
       nodeId,
@@ -75,15 +90,33 @@ export function createEnrollmentService({ store = null, controlChannelPath = "/a
 
   function revokeCredential(nodeId) {
     const rec = credentials.get(nodeId);
-    if (rec) rec.revoked = true;
+    if (rec) {
+      rec.revoked = true;
+      persist("credentials", nodeId, rec);
+    }
     return Boolean(rec);
   }
 
   function revokeToken(token) {
-    return tokens.delete(sha256Hex(token));
+    const tokenHash = sha256Hex(token);
+    remove("enrollments", tokenHash);
+    return tokens.delete(tokenHash);
   }
 
-  return { issueToken, enroll, verifyCredential, revokeCredential, revokeToken };
+  /** Hydrate tokens + credentials from the durable store on startup (post-restart recovery). */
+  async function load() {
+    if (!store) return;
+    for (const rec of (await store.list("enrollments", {}).catch(() => [])) || []) {
+      const h = rec?.tokenHash || rec?.id;
+      if (h) tokens.set(h, rec);
+    }
+    for (const rec of (await store.list("credentials", {}).catch(() => [])) || []) {
+      const id = rec?.nodeId || rec?.id;
+      if (id) credentials.set(id, rec);
+    }
+  }
+
+  return { issueToken, enroll, verifyCredential, revokeCredential, revokeToken, load };
 }
 
 // Constant-time compare of two equal-length hex digests (avoids credential timing oracles).

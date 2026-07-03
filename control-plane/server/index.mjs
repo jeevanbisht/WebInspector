@@ -81,6 +81,8 @@ export function createControlPlaneServer(overrides = {}) {
     scheme,
     async listen(port = config.server.port, host = config.server.host) {
       await store?.init?.();
+      await enrollment.load?.();
+      await registry.load?.();
       reconciler.start({ intervalMs: 5000 });
       return new Promise((resolve) => server.listen(port, host, () => resolve({ port, host })));
     },

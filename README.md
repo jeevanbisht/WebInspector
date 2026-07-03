@@ -157,7 +157,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 52
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 56
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -175,7 +175,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 | Zero-touch onboarding | Control-plane side (enrollment) + Windows bootstrap install path |
 | Cross-platform provider | Windows implemented; Linux + Kubernetes stubbed with documented mapping |
 | Final report (HTML/CSV) | Per-URL arm matrix (Azure Direct / GSA_RNet / GSA_CLIENT / CloudFlare / External), classification + confidence, node inventory, and failure evidence (specific reason, vendor, reference IDs, redirect depth, screenshot/HAR links). Test: `test/final-report.test.mjs` |
-| Durable state store | Adapter-backed store (in-memory default; **SQLite** via built-in `node:sqlite` — indexed + transactional — or localJson for durability; on by default for the CLI). Runs/results/comparisons survive a restart; `GET /api/runs/:id/report.{html,csv}` renders from it. Tests: `test/state-store.test.mjs`, `test/sqlite-adapter.test.mjs` |
+| Durable state store | Adapter-backed store (in-memory default; **SQLite** via built-in `node:sqlite` — indexed + transactional — or localJson for durability; on by default for the CLI). Runs/results/comparisons **and node identity (credentials + registry)** survive a restart; `GET /api/runs/:id/report.{html,csv}` renders from it. Tests: `test/state-store.test.mjs`, `test/sqlite-adapter.test.mjs`, `test/identity-persistence.test.mjs` |
 
 **Still stubbed / TODO**
 
@@ -189,7 +189,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 52 integration tests
+npm test                 # 56 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 

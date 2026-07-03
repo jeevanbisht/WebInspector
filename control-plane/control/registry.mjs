@@ -18,7 +18,8 @@ export function createRegistry({ store = null, heartbeatStaleMs = 120000 } = {})
     const prev = nodes.get(nodeId) || { nodeId, status: "unregistered", versions: {}, metadata: {} };
     const next = { ...prev, ...patch, updatedAt: new Date().toISOString() };
     nodes.set(nodeId, next);
-    // TODO: store?.putNode(next)
+    const p = store?.put?.("nodes", nodeId, next);
+    p?.catch?.(() => {});
     return next;
   }
 
@@ -82,6 +83,14 @@ export function createRegistry({ store = null, heartbeatStaleMs = 120000 } = {})
     /** Nodes with a live session — the reconciler + dispatcher operate on these. */
     listConnected() {
       return [...nodes.values()].filter((n) => sessions.has(n.nodeId));
+    },
+
+    /** Hydrate last-known node inventory from the store on startup (shown until nodes reconnect). */
+    async load() {
+      if (!store) return;
+      for (const rec of (await store.list("nodes", {}).catch(() => [])) || []) {
+        if (rec?.nodeId) nodes.set(rec.nodeId, { ...rec, status: "disconnected" });
+      }
     },
 
     /** Watchdog: flag nodes whose heartbeat is stale. */

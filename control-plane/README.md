@@ -53,9 +53,10 @@ failure evidence with vendor/reference-ids/redirect-depth + screenshot/HAR links
 (`reporting/final-report.mjs`), served at `GET /api/runs/:id/report.{html,csv}` from the store.
 
 **Wired:** the durable state store is on by default for the CLI (persists under `./state/db`;
-in-memory for embedded/test use) — runs/results/comparisons survive a restart. Drivers:
-`sqlite` (built-in `node:sqlite`, indexed + transactional), `localjson`, or `memory`
-(`WEBINSPECTOR_STATE_DRIVER`).
+in-memory for embedded/test use) — runs/results/comparisons **and node identity (hashed
+credentials + enrollment tokens + last-known registry)** survive a restart, so agents reconnect
+without re-enrolling. Drivers: `sqlite` (built-in `node:sqlite`, indexed + transactional),
+`localjson`, or `memory` (`WEBINSPECTOR_STATE_DRIVER`).
 
 **Partial / TODO:** the per-site evidence packet does not yet verify/persist artifacts; the
 store is single-instance (a Postgres adapter + a command bus are the multi-instance step).

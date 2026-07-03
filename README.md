@@ -134,9 +134,10 @@ channel.
 ## Platforms
 
 The supervisor does everything OS-specific through a `PlatformProvider` (see
-`control-plane-agent/platform/`), so the same control logic runs everywhere. **Windows is
-implemented first**; Linux (systemd) and Kubernetes (pod lifecycle) are stubbed with the
-intended mapping documented.
+`control-plane-agent/platform/`), so the same control logic runs everywhere. **Windows**
+(services via `sc.exe`), **Linux** (systemd), and **Kubernetes** (pod lifecycle) providers are
+implemented; the selector picks one by host (`WEBINSPECTOR_PLATFORM` overrides). Full
+systemctl/kubectl execution is verified on those hosts; the command/unit builders are unit-tested.
 
 ## Best practices baked in
 
@@ -158,7 +159,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 62
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 66
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -174,7 +175,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 | Central updates | Bundle registry, canary reconciler, verify + atomic A/B swap + health-gate + rollback |
 | Remote reboot | Command + `bye` + await-reconnect (closes fully once the service host lands) |
 | Zero-touch onboarding | Control-plane side (enrollment) + Windows bootstrap install path |
-| Cross-platform provider | Windows implemented; Linux + Kubernetes stubbed with documented mapping |
+| Cross-platform provider | Windows (`sc.exe`), Linux (systemd), and Kubernetes (pod lifecycle) providers implemented. Test: `test/platform.test.mjs` |
 | Final report (HTML/CSV) | Per-URL arm matrix (Azure Direct / GSA_RNet / GSA_CLIENT / CloudFlare / External), classification + confidence, node inventory, and failure evidence (specific reason, vendor, reference IDs, redirect depth, screenshot/HAR links). Test: `test/final-report.test.mjs` |
 | Durable state store | Adapter-backed store (in-memory default; **SQLite** via built-in `node:sqlite` — indexed + transactional — or localJson for durability; on by default for the CLI). Runs/results/comparisons **and node identity (credentials + registry)** survive a restart; `GET /api/runs/:id/report.{html,csv}` renders from it. Tests: `test/state-store.test.mjs`, `test/sqlite-adapter.test.mjs`, `test/identity-persistence.test.mjs` |
 
@@ -184,13 +185,12 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 - Horizontal scale-out: shared state + a command bus so multiple control-plane instances can
   route commands to the instance holding each node's session (durable single-instance store is
   now wired; multi-instance is next)
-- Linux + Kubernetes platform providers
 
 ## Quickstart
 
 ```bash
 npm install
-npm test                 # 62 integration tests
+npm test                 # 66 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 

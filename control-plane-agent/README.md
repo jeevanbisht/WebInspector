@@ -34,7 +34,7 @@ control connection.
 | updater | `updater/apply-bundle.mjs` | Download → verify → swap → health-gate → rollback. |
 | updater | `updater/rollback.mjs` | Flip `current` back to the previous version. |
 | updater | `updater/version.mjs` | Read/write the installed version marker. |
-| platform | `platform/*` | OS abstraction (Windows first; Linux + K8s stubbed). |
+| platform | `platform/*` | OS abstraction — Windows (`sc.exe`), Linux (systemd), Kubernetes (pod lifecycle). |
 
 ## Identity
 
@@ -51,5 +51,9 @@ with stdio IPC (job delivery + ready/result + health gate + force-kill), and the
 (download + SHA-256 + ed25519 signature verify + atomic A/B swap + health-gate + rollback). The Windows platform provider
 is implemented.
 
-**TODO:** running the supervisor as a real OS service (service host), and the Linux +
-Kubernetes platform providers.
+**Implemented:** the Windows, Linux (systemd), and Kubernetes (pod-lifecycle) platform
+providers. Command/unit builders are unit-tested (`test/platform.test.mjs`); full
+systemctl/kubectl execution is verified on those hosts.
+
+**TODO:** running the supervisor as a real OS **service host** (nssm/winsw on Windows) so it
+survives reboot without a scheduled task.

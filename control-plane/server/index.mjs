@@ -21,7 +21,7 @@ import { createUpdateManager } from "../control/update-manager.mjs";
 import { createBundleRegistry } from "../control/bundle-registry.mjs";
 import { createRebootManager } from "../control/reboot-manager.mjs";
 import { createEnrollmentService } from "../control/enrollment.mjs";
-import { verifyNodeAuth } from "./auth.mjs";
+import { verifyNodeAuth, verifyOperatorAuth, createOperatorAuth } from "./auth.mjs";
 import { attachControlChannel } from "./channel.mjs";
 import { createBlobStore } from "../data/blob-store.mjs";
 import { createDataPlane } from "./data-plane.mjs";
@@ -44,6 +44,7 @@ export function createControlPlaneServer(overrides = {}) {
     rollout: config.rollout,
   });
   const enrollment = createEnrollmentService({ store, tokenTtlMs: config.security.enrollmentTokenTtlMs });
+  const operatorAuth = overrides.operatorAuth || createOperatorAuth({ tokens: config.security.operatorTokens, logger: console });
   const reboot = createRebootManager({ dispatcher, registry, store });
   const reconciler = createReconciler({ registry, dispatcher, updateManager });
   const blobStore = createBlobStore({ dir: config.server.blobDir });
@@ -52,7 +53,7 @@ export function createControlPlaneServer(overrides = {}) {
   const sitePacket = createSitePacket({ store, artifacts: blobStore });
   const orchestrator = createRunOrchestrator({ store, registry, dispatcher, selection, sitePacket });
 
-  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, reboot, reconciler, blobStore, dataPlane, selection, orchestrator };
+  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, operatorAuth, reboot, reconciler, blobStore, dataPlane, selection, orchestrator };
 
   const server = http.createServer((req, res) => route(req, res, services).catch((e) => fail(res, e)));
 
@@ -80,6 +81,16 @@ async function route(req, res, services) {
   const { pathname } = url;
   const method = req.method;
 
+  // Gate for operator-only mutations. Returns false (and writes 401) when unauthenticated.
+  const requireOperator = () => {
+    const auth = verifyOperatorAuth(req, services.operatorAuth);
+    if (!auth.ok) {
+      json(res, 401, { error: "operator authentication required", reason: auth.reason });
+      return false;
+    }
+    return true;
+  };
+
   // health
   if (method === "GET" && pathname === "/api/health") return json(res, 200, { ok: true, ts: new Date().toISOString() });
 
@@ -100,8 +111,9 @@ async function route(req, res, services) {
 
   // enrollment
   if (method === "POST" && pathname === "/api/enrollment-tokens") {
-    const body = await readJson(req); // TODO: operator auth
-    return json(res, 201, services.enrollment.issueToken(body));
+    if (!requireOperator()) return;
+    const body = await readJson(req).catch(() => ({}));
+    return json(res, 201, services.enrollment.issueToken({ ...body, issuedBy: "operator" }));
   }
   if (method === "POST" && pathname === "/api/enroll") {
     const body = await readJson(req);
@@ -117,6 +129,7 @@ async function route(req, res, services) {
 
   // runs API (the run pipeline)
   if (method === "POST" && pathname === "/api/runs") {
+    if (!requireOperator()) return;
     const body = await readJson(req).catch(() => ({}));
     const run = services.orchestrator.createRun(body);
     return json(res, 201, { runId: run.id, run });
@@ -126,6 +139,7 @@ async function route(req, res, services) {
     const parts = pathname.split("/"); // ['', api, runs, runId, (urls)?]
     const runId = decodeURIComponent(parts[3]);
     if (method === "POST" && parts.length === 5 && parts[4] === "urls") {
+      if (!requireOperator()) return;
       try {
         return json(res, 202, services.orchestrator.queueUrl(runId, (await readJson(req)).url));
       } catch (e) {
@@ -140,6 +154,7 @@ async function route(req, res, services) {
 
   // command APIs (Portal → agent). Node-authenticated data/control below.
   if (method === "POST" && pathname.startsWith("/api/nodes/") && pathname.endsWith("/reboot")) {
+    if (!requireOperator()) return;
     const nodeName = decodeURIComponent(pathname.split("/")[3]);
     return json(res, 202, await services.reboot.reboot(nodeName, await readJson(req).catch(() => ({}))));
   }
@@ -153,7 +168,10 @@ async function route(req, res, services) {
       // GET is public: bundles are integrity-checked (SHA-256), not secret, and the
       // bootstrap fetches the supervisor bundle before it has a node credential.
       if (method === "GET") return services.dataPlane.streamBundle(req, res, { component, version });
-      if (method === "PUT") return services.dataPlane.publishBundle(req, res, { component, version }); // TODO: operator auth
+      if (method === "PUT") {
+        if (!requireOperator()) return;
+        return services.dataPlane.publishBundle(req, res, { component, version });
+      }
     }
   }
   if (method === "GET" && pathname.startsWith("/artifacts/")) {

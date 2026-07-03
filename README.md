@@ -141,7 +141,9 @@ intended mapping documented.
 ## Best practices baked in
 
 - **Security** — authenticated control channel (enrollment token → durable node credential;
-  mTLS-ready), signed + SHA-256-verified update bundles, least privilege, no secrets in repo.
+  mTLS-ready) and **operator-authenticated `/api/*` mutations** (bearer PAT, pluggable for
+  OIDC/session), SHA-256-verified update bundles (signature verification on the roadmap),
+  constant-time credential checks, least privilege, no secrets in repo.
 - **Reliability** — reconnect with backoff, idempotent commands (dedupe by `commandId`),
   ack + result correlation, graceful drain, watchdog self-heal.
 - **Updates** — desired-state reconciliation, canary-first rollout, atomic A/B swap,
@@ -153,7 +155,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 28
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 34
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -182,12 +184,17 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 10 integration tests
+npm test                 # 34 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 
 Onboard a node (zero-touch): issue an enrollment token in the Portal, then on the VM run
 `iwr http://<cp>:8787/bootstrap/install.ps1 | iex` (see "Zero-touch onboarding" above).
+
+Operator-only API mutations (issue enrollment tokens, create/queue runs, reboot a node,
+publish an update bundle) require an operator bearer token. Set `WEBINSPECTOR_OPERATOR_TOKEN`
+(comma-separated for multiple); if none is set, the server mints and logs an ephemeral one at
+startup so the surface is never open. Reads (`GET /api/*`) and health stay public.
 
 ## Continuing the build
 

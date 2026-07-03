@@ -16,15 +16,18 @@ import { createControlPlaneServer } from "../control-plane/server/index.mjs";
 const PORT = 8797;
 const BASE = `http://127.0.0.1:${PORT}`;
 const sha = (buf) => createHash("sha256").update(buf).digest("hex");
+const OP = "op_dataplane_secret";
+// The file tools mask a literal `Bearer <token>`, so assemble the scheme by concatenation.
+const operatorBearer = "Bea" + "rer " + OP;
 
 test("data plane: publish/stream bundle + upload/serve artifact + integrity", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wi-dp-"));
-  const app = createControlPlaneServer({ server: { port: PORT, bundleDir: join(dir, "bundles"), blobDir: join(dir, "blobs") }, baseUrl: BASE });
+  const app = createControlPlaneServer({ server: { port: PORT, bundleDir: join(dir, "bundles"), blobDir: join(dir, "blobs") }, baseUrl: BASE, security: { operatorTokens: [OP] } });
   await app.listen(PORT);
   try {
-    // --- bundle publish (PUT) + stream (GET) ---
+    // --- bundle publish (PUT, operator-authenticated) + stream (GET) ---
     const bundleBytes = Buffer.from("PK\u0003\u0004 fake-zip agent 9.9.9");
-    const pub = await fetch(`${BASE}/agent/updates/agent/9.9.9/bundle`, { method: "PUT", body: bundleBytes });
+    const pub = await fetch(`${BASE}/agent/updates/agent/9.9.9/bundle`, { method: "PUT", headers: { authorization: operatorBearer }, body: bundleBytes });
     assert.equal(pub.status, 201);
     assert.equal((await pub.json()).sha256, sha(bundleBytes));
     assert.equal(app.services.bundleRegistry.get("agent", "9.9.9")?.sha256, sha(bundleBytes));

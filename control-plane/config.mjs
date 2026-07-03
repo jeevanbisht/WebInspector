@@ -16,6 +16,10 @@ export const DEFAULT_CONTROL_PLANE_CONFIG = Object.freeze({
     // /api/* mutations is separate. mTLS is the target; token-based to start.
     requireNodeCredential: true,
     enrollmentTokenTtlMs: 15 * 60 * 1000,
+    // Operator bearer tokens (PATs) for /api/* mutations. Empty here (never store secrets in
+    // config): supply via WEBINSPECTOR_OPERATOR_TOKEN or overrides; the server generates an
+    // ephemeral one at startup if none is configured.
+    operatorTokens: [],
   },
   // Desired versions the reconciler converges every node to (central update target).
   desiredVersions: versionSnapshot(),
@@ -43,7 +47,16 @@ export const DEFAULT_CONTROL_PLANE_CONFIG = Object.freeze({
 });
 
 export function loadControlPlaneConfig(overrides = {}) {
-  return deepMerge(DEFAULT_CONTROL_PLANE_CONFIG, overrides || {});
+  const merged = deepMerge(DEFAULT_CONTROL_PLANE_CONFIG, overrides || {});
+  // Operator tokens: explicit overrides win; otherwise read from the environment (comma-
+  // separated). Left empty means the server mints an ephemeral token at startup.
+  if (!overrides?.security?.operatorTokens && process.env.WEBINSPECTOR_OPERATOR_TOKEN) {
+    merged.security = {
+      ...merged.security,
+      operatorTokens: process.env.WEBINSPECTOR_OPERATOR_TOKEN.split(",").map((t) => t.trim()).filter(Boolean),
+    };
+  }
+  return merged;
 }
 
 function deepMerge(base, overlay) {

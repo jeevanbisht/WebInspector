@@ -5,6 +5,8 @@
 //     minted at enrollment (Authorization: Bearer <nodeId>:<nodeCredential>). mTLS-ready.
 //   - Operators (/api/* mutations): separate; wire to your IdP/session. TODO.
 
+import { randomBytes, timingSafeEqual } from "node:crypto";
+
 export function verifyNodeAuth(req, enrollment) {
   const header = req.headers?.authorization || "";
   const m = /^Bearer\s+(.+)$/i.exec(header);
@@ -23,7 +25,56 @@ export function nodeAuthHeaders(nodeId, credential) {
   return { authorization: `Bearer ${credential}`, "x-node-id": nodeId };
 }
 
-// TODO: verifyOperatorAuth(req) — session/OIDC/PAT for Portal-driven mutations.
-export function verifyOperatorAuth(_req) {
-  return { ok: true, subject: "operator" }; // placeholder; do not ship open
+// Operator auth for /api/* mutations (enrollment issuance, runs, reboot, bundle publish).
+//
+// Bearer PAT to start; inject a custom `verify(req) -> { ok, subject?, reason? }` for OIDC or
+// a session store. Denies by default: if neither tokens nor a verifier are supplied, an
+// ephemeral token is minted for this process (and logged) so the surface is never open.
+export function createOperatorAuth({ tokens = [], verify = null, logger = console } = {}) {
+  const customVerify = typeof verify === "function" ? verify : null;
+  let allow = normalizeTokens(tokens);
+  let generatedToken = null;
+  if (!customVerify && allow.length === 0) {
+    generatedToken = `op_${randomBytes(24).toString("base64url")}`;
+    allow = [generatedToken];
+    logger?.warn?.(
+      "[auth] no operator token configured — generated an ephemeral one for this process. " +
+        `Set WEBINSPECTOR_OPERATOR_TOKEN to override. Token: ${generatedToken}`,
+    );
+  }
+  return {
+    generatedToken,
+    verify(req) {
+      if (customVerify) return customVerify(req);
+      const token = bearerToken(req);
+      if (!token) return { ok: false, reason: "missing operator credential" };
+      const ok = allow.some((t) => constantTimeEquals(t, token));
+      return ok ? { ok: true, subject: "operator" } : { ok: false, reason: "invalid operator credential" };
+    },
+  };
+}
+
+/** Verify an operator request against a created operator-auth instance. Fails closed. */
+export function verifyOperatorAuth(req, operatorAuth) {
+  if (!operatorAuth || typeof operatorAuth.verify !== "function") {
+    return { ok: false, reason: "operator auth not configured" };
+  }
+  return operatorAuth.verify(req);
+}
+
+function bearerToken(req) {
+  const m = /^Bearer\s+(.+)$/i.exec(req.headers?.authorization || "");
+  return m ? m[1].trim() : null;
+}
+
+function constantTimeEquals(a, b) {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
+}
+
+function normalizeTokens(tokens) {
+  const list = Array.isArray(tokens) ? tokens : String(tokens || "").split(",");
+  return [...new Set(list.map((t) => String(t).trim()).filter(Boolean))];
 }

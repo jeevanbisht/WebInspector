@@ -75,7 +75,7 @@ test("loadControlPlaneConfig: WEBINSPECTOR_OPERATOR_TOKEN populates operatorToke
 
 // ---------- HTTP integration ----------
 
-test("operator routes: closed without a credential, open with one; reads stay public", { timeout: 20000 }, async () => {
+test("operator routes: closed without a credential, open with one; only health stays public", { timeout: 20000 }, async () => {
   const PORT = 8810;
   const BASE = `http://127.0.0.1:${PORT}`;
   const app = await startApp(PORT, { security: { operatorTokens: [OP] } });
@@ -98,9 +98,11 @@ test("operator routes: closed without a credential, open with one; reads stay pu
     assert.equal((await fetch(`${BASE}/agent/updates/agent/1.0.0/bundle`, put(null))).status, 401);
     assert.notEqual((await fetch(`${BASE}/agent/updates/agent/1.0.0/bundle`, put(OP))).status, 401, "auth passes with token");
 
-    // reads + health remain public
+    // health stays public; operator reads (inventory/runs) now require the token too
     assert.equal((await fetch(`${BASE}/api/health`)).status, 200);
-    assert.equal((await fetch(`${BASE}/api/nodes`)).status, 200);
+    assert.equal((await fetch(`${BASE}/api/nodes`)).status, 401);
+    assert.equal((await fetch(`${BASE}/api/nodes`, { headers: { authorization: bearer(OP) } })).status, 200);
+    assert.equal((await fetch(`${BASE}/api/runs`)).status, 401);
 
     // node-side enroll is NOT operator-gated: the operator-issued token enrolls a node
     const enrolled = await fetch(`${BASE}/api/enroll`, post(null, { enrollmentToken: token, identity: { nodeName: "VM1", nodeType: "azure_direct" } }));

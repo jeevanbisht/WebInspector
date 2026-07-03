@@ -124,8 +124,11 @@ async function route(req, res, services) {
     }
   }
 
-  // read APIs (Portal)
-  if (method === "GET" && pathname === "/api/nodes") return json(res, 200, { nodes: services.registry.listAll() });
+  // read APIs (operator-authenticated: node inventory + runs disclose infrastructure)
+  if (method === "GET" && pathname === "/api/nodes") {
+    if (!requireOperator()) return;
+    return json(res, 200, { nodes: services.registry.listAll() });
+  }
 
   // runs API (the run pipeline)
   if (method === "POST" && pathname === "/api/runs") {
@@ -134,7 +137,10 @@ async function route(req, res, services) {
     const run = services.orchestrator.createRun(body);
     return json(res, 201, { runId: run.id, run });
   }
-  if (method === "GET" && pathname === "/api/runs") return json(res, 200, { runs: services.orchestrator.listRuns() });
+  if (method === "GET" && pathname === "/api/runs") {
+    if (!requireOperator()) return;
+    return json(res, 200, { runs: services.orchestrator.listRuns() });
+  }
   if (pathname.startsWith("/api/runs/")) {
     const parts = pathname.split("/"); // ['', api, runs, runId, (urls)?]
     const runId = decodeURIComponent(parts[3]);
@@ -147,6 +153,7 @@ async function route(req, res, services) {
       }
     }
     if (method === "GET" && parts.length === 4) {
+      if (!requireOperator()) return;
       const details = services.orchestrator.getRun(runId);
       return details ? json(res, 200, details) : json(res, 404, { error: "run not found" });
     }

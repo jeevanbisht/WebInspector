@@ -118,10 +118,18 @@ A fresh VM joins the full flow with no manual configuration:
 2. On the VM, an admin or automation runs the tiny bootstrap — interactively or unattended
    (Azure VM Custom Script Extension / cloud-init / GPO startup script):
    ```powershell
+   # Windows
    $env:WEBINSPECTOR_CONTROLPLANE_URL='http://<cp>:8787'
    $env:WEBINSPECTOR_ENROLLMENT_TOKEN='<token>'
    $env:WEBINSPECTOR_NODE_TYPE='azure_direct'
    iwr http://<cp>:8787/bootstrap/install.ps1 | iex
+   ```
+   ```bash
+   # Linux (systemd)
+   export WEBINSPECTOR_CONTROLPLANE_URL='http://<cp>:8787'
+   export WEBINSPECTOR_ENROLLMENT_TOKEN='<token>'
+   export WEBINSPECTOR_NODE_TYPE='azure_direct'
+   curl -fsSL "$WEBINSPECTOR_CONTROLPLANE_URL/bootstrap/install.sh" | sudo -E bash
    ```
 3. The bootstrap downloads + verifies the supervisor, installs it as an auto-start service,
    and enrolls the node (`POST /api/enroll`) — exchanging the token for a durable node
@@ -161,7 +169,7 @@ systemctl/kubectl execution is verified on those hosts; the command/unit builder
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 74
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 75
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -192,12 +200,14 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 74 integration tests
+npm test                 # 75 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 
 Onboard a node (zero-touch): issue an enrollment token in the Portal, then on the VM run
-`iwr http://<cp>:8787/bootstrap/install.ps1 | iex` (see "Zero-touch onboarding" above).
+`iwr http://<cp>:8787/bootstrap/install.ps1 | iex` (Windows) or
+`curl -fsSL http://<cp>:8787/bootstrap/install.sh | sudo -E bash` (Linux) — see "Zero-touch
+onboarding" above.
 
 Operator-only API mutations (issue enrollment tokens, create/queue runs, reboot a node,
 publish an update bundle) require an operator bearer token. Set `WEBINSPECTOR_OPERATOR_TOKEN`

@@ -56,11 +56,12 @@ export async function bootstrap(opts = {}) {
   await platform.extractBundle(bundlePath, versionsDir);
   await platform.swapCurrent(join(installRoot, "control-plane-agent", "current"), versionsDir);
 
-  // 3. Install the supervisor as an auto-start service (survives reboot).
+  // 3. Install the supervisor as an auto-start service (survives reboot). Use the absolute
+  // node path so systemd's ExecStart (and the Windows service) resolve without relying on PATH.
   const currentDir = join(installRoot, "control-plane-agent", "current");
   await platform.installService({
     name: "WebInspectorControlPlaneAgent",
-    binPath: `node "${join(currentDir, "core", "index.mjs")}"`,
+    binPath: `"${process.execPath}" "${join(currentDir, "core", "index.mjs")}"`,
   });
 
   // 4. Enroll: exchange the token for a durable node credential.

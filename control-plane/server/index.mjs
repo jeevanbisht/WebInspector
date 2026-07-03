@@ -168,6 +168,7 @@ async function route(req, res, services) {
     return json(res, 200, { supervisor: { version, bundle } });
   }
   if (method === "GET" && pathname === "/bootstrap/install.ps1") return serveFile(res, "../../bootstrap/windows/install.ps1", "text/plain");
+  if (method === "GET" && pathname === "/bootstrap/install.sh") return serveFile(res, "../../bootstrap/linux/install.sh", "text/x-shellscript");
   if (method === "GET" && pathname === "/bootstrap/bootstrap.mjs") return serveFile(res, "../../bootstrap/bootstrap.mjs", "text/javascript");
 
   // enrollment

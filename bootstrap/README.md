@@ -24,6 +24,7 @@ it into the WebInspector control plane with **zero touch**.
 | File | Purpose |
 | --- | --- |
 | `windows/install.ps1` | Tiny Windows entrypoint. Ensures Node, downloads `bootstrap.mjs`, runs it. Supports `iwr\|iex` and Custom Script Extension. |
+| `linux/install.sh` | Tiny Linux entrypoint (systemd). Ensures Node, downloads `bootstrap.mjs`, runs it. Supports `curl\|sudo -E bash` and cloud-init. |
 | `bootstrap.mjs` | Cross-platform orchestrator: manifest → download+verify supervisor → install service → enroll → start. |
 | `enroll.mjs` | Enrollment-token exchange + secure persistence of the returned node identity/credential. |
 

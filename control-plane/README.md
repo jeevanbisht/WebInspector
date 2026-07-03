@@ -42,7 +42,7 @@ Single port; the plane split is by endpoint, not by port (see the root README).
 **Implemented + tested:** single-port server, control channel (WebSocket + HTTP long-poll
 fallback), **operator auth on `/api/*` mutations** (bearer PAT, constant-time, pluggable for
 OIDC — `server/auth.mjs`, tested by `test/operator-auth.test.mjs`), agent registry, command
-dispatcher, enrollment, data plane (bundle publish/stream + artifact upload/serve), and the
+dispatcher, enrollment, data plane (bundle publish/stream with ed25519 signature enforcement + artifact upload/serve), and the
 run orchestrator (queue → dispatch → results → comparison → complete) with the runs API
 (`POST /api/runs`, `POST /api/runs/:id/urls`, `GET /api/runs`, `GET /api/runs/:id`).
 

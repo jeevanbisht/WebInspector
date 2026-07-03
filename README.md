@@ -142,8 +142,8 @@ intended mapping documented.
 
 - **Security** — authenticated control channel (enrollment token → durable node credential;
   mTLS-ready) and **operator-authenticated `/api/*` mutations** (bearer PAT, pluggable for
-  OIDC/session), SHA-256-verified update bundles (signature verification on the roadmap),
-  constant-time credential checks, least privilege, no secrets in repo.
+  OIDC/session), **ed25519-signed + SHA-256-verified update bundles** (verified on publish and
+  again before apply), constant-time credential checks, least privilege, no secrets in repo.
 - **Reliability** — reconnect with backoff, idempotent commands (dedupe by `commandId`),
   ack + result correlation, graceful drain, watchdog self-heal.
 - **Updates** — desired-state reconciliation, canary-first rollout, atomic A/B swap,
@@ -155,7 +155,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 34
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 40
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -184,7 +184,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 34 integration tests
+npm test                 # 40 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 

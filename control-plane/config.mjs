@@ -20,6 +20,13 @@ export const DEFAULT_CONTROL_PLANE_CONFIG = Object.freeze({
     // config): supply via WEBINSPECTOR_OPERATOR_TOKEN or overrides; the server generates an
     // ephemeral one at startup if none is configured.
     operatorTokens: [],
+    // Update-bundle signing. Configure publisher public key(s) (ed25519 PEM) to REQUIRE a
+    // valid signature on publish; supply via WEBINSPECTOR_BUNDLE_PUBLISHER_KEYS_B64 (comma-
+    // separated base64 PEMs) or overrides. Empty = unenforced. requireSignature fails closed.
+    bundleSigning: {
+      publisherPublicKeys: [],
+      requireSignature: false,
+    },
   },
   // Desired versions the reconciler converges every node to (central update target).
   desiredVersions: versionSnapshot(),
@@ -55,6 +62,14 @@ export function loadControlPlaneConfig(overrides = {}) {
       ...merged.security,
       operatorTokens: process.env.WEBINSPECTOR_OPERATOR_TOKEN.split(",").map((t) => t.trim()).filter(Boolean),
     };
+  }
+  // Bundle publisher public keys: base64-encoded PEMs, comma-separated.
+  if (!overrides?.security?.bundleSigning?.publisherPublicKeys && process.env.WEBINSPECTOR_BUNDLE_PUBLISHER_KEYS_B64) {
+    const keys = process.env.WEBINSPECTOR_BUNDLE_PUBLISHER_KEYS_B64.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((b64) => Buffer.from(b64, "base64").toString("utf8"));
+    merged.security = { ...merged.security, bundleSigning: { ...merged.security.bundleSigning, publisherPublicKeys: keys } };
   }
   return merged;
 }

@@ -48,7 +48,7 @@ with them. The enrollment token itself is never stored or reused.
 (`POST /agent/push` + long-held `GET /agent/poll`) and transparent WS→long-poll auto-failover,
 reconnect + bounded outbox — register + heartbeat, idempotent command router, worker manager
 with stdio IPC (job delivery + ready/result + health gate + force-kill), and the updater
-(download + verify + atomic A/B swap + health-gate + rollback). The Windows platform provider
+(download + SHA-256 + ed25519 signature verify + atomic A/B swap + health-gate + rollback). The Windows platform provider
 is implemented.
 
 **TODO:** running the supervisor as a real OS service (service host), and the Linux +

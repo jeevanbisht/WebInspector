@@ -7,8 +7,9 @@
 //
 // Served over the DATA plane: GET /agent/updates/<version>/bundle
 //
-// TODO: back this with the durable state store + on-disk bundle files; add signature
-// verification against a trusted public key.
+// Signature verification (ed25519) is enforced at publish and again before apply (see
+// shared/protocol/bundle-signing.mjs). TODO: back this with the durable state store + on-disk
+// bundle files.
 
 import { COMPONENT_VERSION_FIELDS } from "../../shared/contracts/versions.mjs";
 import { makeDataRef } from "../../shared/protocol/data-plane.mjs";
@@ -64,6 +65,7 @@ export function createBundleRegistry({ baseUrl = "", store = null } = {}) {
         url: b.downloadUrl,
         sha256: b.sha256,
         sizeBytes: b.sizeBytes,
+        signature: b.signature || null,
       });
     },
   };

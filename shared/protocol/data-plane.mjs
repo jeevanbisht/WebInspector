@@ -41,7 +41,7 @@ export function isDataKind(value) {
  * A reference to bulk data, carried on the CONTROL channel (result_ref / artifact_ref).
  * The bytes live on the data plane at `url`.
  */
-export function makeDataRef({ kind, url, sha256, sizeBytes, jobId = null, nodeName = null } = {}) {
+export function makeDataRef({ kind, url, sha256, sizeBytes, jobId = null, nodeName = null, signature = null } = {}) {
   if (!isDataKind(kind)) throw new Error(`unknown data kind: ${kind}`);
   if (!url) throw new Error("data ref requires a url");
   if (!sha256) throw new Error("data ref requires a sha256 (content-addressed)");
@@ -51,6 +51,7 @@ export function makeDataRef({ kind, url, sha256, sizeBytes, jobId = null, nodeNa
     sha256,
     sizeBytes: Number(sizeBytes || 0),
     contentType: DATA_CONTENT_TYPES[kind],
+    signature, // ed25519 signature for update bundles (null for other kinds)
     jobId,
     nodeName,
     createdAt: new Date().toISOString(),

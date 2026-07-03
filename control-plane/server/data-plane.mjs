@@ -13,28 +13,40 @@ import { createHash } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
 import { mkdir, writeFile, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { verifyBundleSignature } from "../../shared/protocol/bundle-signing.mjs";
 
 const COMPONENTS = ["agent", "control-plane-agent"];
 
 export function createDataPlane({ config, bundleRegistry, blobStore, store = null } = {}) {
   const bundleDir = config.server.bundleDir;
+  const signing = config.security?.bundleSigning || {};
 
   return {
     async publishBundle(req, res, { component, version }) {
       if (!COMPONENTS.includes(component)) return json(res, 400, { error: `unknown component: ${component}` });
       if (!version) return json(res, 400, { error: "version required" });
-      // TODO: operator auth before accepting a bundle.
       const buf = await readBody(req);
       const sha256 = createHash("sha256").update(buf).digest("hex");
+
+      // Signature enforcement: required whenever publisher keys are configured (or forced).
+      const publisherKeys = signing.publisherPublicKeys || [];
+      const signature = req.headers["x-bundle-signature"] || null;
+      if (publisherKeys.length || signing.requireSignature) {
+        if (!signature) return json(res, 400, { error: "bundle signature required (x-bundle-signature)" });
+        if (!verifyBundleSignature({ component, version, sha256, signature, publicKeys: publisherKeys })) {
+          return json(res, 400, { error: "invalid bundle signature" });
+        }
+      }
+
       await mkdir(bundleDir, { recursive: true });
       await writeFile(join(bundleDir, `${component}-${version}.zip`), buf);
       let rec;
       try {
-        rec = bundleRegistry.register({ component, version, sha256, sizeBytes: buf.length });
+        rec = bundleRegistry.register({ component, version, sha256, sizeBytes: buf.length, signature });
       } catch (e) {
         return json(res, 409, { error: e.message }); // immutable: already registered
       }
-      return json(res, 201, { component, version, sha256, sizeBytes: buf.length, downloadUrl: rec.downloadUrl });
+      return json(res, 201, { component, version, sha256, sizeBytes: buf.length, signature: signature || null, downloadUrl: rec.downloadUrl });
     },
 
     async streamBundle(req, res, { component, version }) {
@@ -42,7 +54,9 @@ export function createDataPlane({ config, bundleRegistry, blobStore, store = nul
       const file = join(bundleDir, `${component}-${version}.zip`);
       if (!rec || !existsSync(file)) return json(res, 404, { error: "bundle not found" });
       const { size } = await stat(file);
-      res.writeHead(200, { "content-type": "application/zip", "content-length": size, "x-bundle-sha256": rec.sha256 });
+      const headers = { "content-type": "application/zip", "content-length": size, "x-bundle-sha256": rec.sha256 };
+      if (rec.signature) headers["x-bundle-signature"] = rec.signature;
+      res.writeHead(200, headers);
       createReadStream(file).pipe(res);
     },
 

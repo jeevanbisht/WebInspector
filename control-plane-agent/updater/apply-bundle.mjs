@@ -15,8 +15,9 @@ import { rm } from "node:fs/promises";
 import { writeVersionMarker, readInstalledVersion } from "./version.mjs";
 import { rollbackTo } from "./rollback.mjs";
 import { waitForHealthy } from "../worker-manager/health.mjs";
+import { verifyBundleSignature } from "../../shared/protocol/bundle-signing.mjs";
 
-export function createUpdater({ platform, paths, workerManager, healthGateMs = 60000, controlPlaneUrl = "", logger = console } = {}) {
+export function createUpdater({ platform, paths, workerManager, healthGateMs = 60000, controlPlaneUrl = "", trustedPublicKeys = [], logger = console } = {}) {
   function layout(component) {
     if (component === "agent") {
       return { versionsDir: paths.agentVersionsDir, currentLink: paths.agentCurrent };
@@ -36,7 +37,16 @@ export function createUpdater({ platform, paths, workerManager, healthGateMs = 6
       onProgress?.(`downloading ${component}@${version}`);
       const bundleUrl = bundle.url.startsWith("http") ? bundle.url : `${controlPlaneUrl || ""}${bundle.url}`;
       await platform.downloadFile(bundleUrl, tmp, { sha256: bundle.sha256 });
-      // TODO: verify bundle.signature against the trusted public key before extract.
+
+      // Verify the publisher signature before trusting the bytes — defense-in-depth against a
+      // compromised ControlPlane. Enforced only when trusted public keys are configured.
+      if (trustedPublicKeys && trustedPublicKeys.length) {
+        const trusted = verifyBundleSignature({ component, version, sha256: bundle.sha256, signature: bundle.signature, publicKeys: trustedPublicKeys });
+        if (!trusted) {
+          await rm(tmp, { force: true }).catch(() => {});
+          throw new Error(`bundle ${component}@${version} failed signature verification; refusing to apply`);
+        }
+      }
 
       onProgress?.("extracting");
       await platform.extractBundle(tmp, versionDir);

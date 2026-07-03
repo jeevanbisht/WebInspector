@@ -8,12 +8,14 @@
 //   node deploy/scripts/build-bundle.mjs --component agent --version 3.1.0 --src ./agent [--out ./dist]
 //
 // Output: <out>/<component>-<version>.zip + <component>-<version>.manifest.json
-// TODO: sign the bundle and emit the signature into the manifest.
+// Pass --signing-key <pem-file> (or WEBINSPECTOR_BUNDLE_SIGNING_KEY_FILE) to sign the bundle;
+// the ed25519 signature is emitted into the manifest and published via x-bundle-signature.
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { signBundle } from "../../shared/protocol/bundle-signing.mjs";
 
 function parseArgs(argv = process.argv.slice(2)) {
   const a = {};
@@ -56,11 +58,22 @@ async function main() {
   const buf = await readFile(zipPath);
   const sha256 = createHash("sha256").update(buf).digest("hex");
   const { size } = await stat(zipPath);
-  const manifest = { component, version, sha256, sizeBytes: size, createdAt: new Date().toISOString() };
+
+  // Sign the bundle when a signing key is provided (--signing-key <pem-file> or
+  // WEBINSPECTOR_BUNDLE_SIGNING_KEY_FILE). The signature binds (component, version, sha256);
+  // publish it to the ControlPlane via the x-bundle-signature header.
+  let signature = null;
+  const keyFile = args["signing-key"] || process.env.WEBINSPECTOR_BUNDLE_SIGNING_KEY_FILE;
+  if (keyFile) {
+    const privateKey = await readFile(resolve(keyFile), "utf8");
+    signature = signBundle({ component, version, sha256, privateKey });
+  }
+
+  const manifest = { component, version, sha256, sizeBytes: size, signature, createdAt: new Date().toISOString() };
   const manifestPath = join(outDir, `${component}-${version}.manifest.json`);
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
-  console.log(`[build-bundle] sha256=${sha256} size=${size}`);
+  console.log(`[build-bundle] sha256=${sha256} size=${size} signature=${signature ? "present" : "none (unsigned)"}`);
   console.log(`[build-bundle] manifest → ${manifestPath}`);
   console.log(`[build-bundle] register with the ControlPlane, then set desiredVersions.${component === "agent" ? "agentVersion" : "controlPlaneAgentVersion"}=${version}`);
 }

@@ -196,9 +196,42 @@ document.querySelector("#runs-table")?.addEventListener("click", (e) => {
   if (b) openReport(b.dataset.run, b.dataset.report);
 });
 
+// --- events ---
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+async function loadEvents() {
+  const tbody = document.querySelector("#events-table tbody");
+  if (!tbody) return;
+  try {
+    const { events } = await api.get("/api/events?limit=100");
+    if (!events?.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="muted">no events yet</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = events
+      .map((e) => {
+        const detail = e.message || (e.data && Object.keys(e.data).length ? JSON.stringify(e.data) : "");
+        return `<tr>
+          <td>${e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : "—"}</td>
+          <td>${escapeHtml(e.type || "?")}</td>
+          <td>${escapeHtml(e.nodeName || "—")}</td>
+          <td>${escapeHtml(e.runId || "—")}</td>
+          <td class="muted">${escapeHtml(detail)}</td>
+        </tr>`;
+      })
+      .join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="fail">${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+document.getElementById("refresh-events")?.addEventListener("click", loadEvents);
+
 // --- boot ---
 pollHealth();
 loadNodes();
 loadRuns();
+loadEvents();
 setInterval(pollHealth, 10000);
 setInterval(loadNodes, 15000);

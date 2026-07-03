@@ -203,6 +203,15 @@ async function route(req, res, services) {
     return res.end(body);
   }
 
+  // append-only event log (operator-gated)
+  if (method === "GET" && pathname === "/api/events") {
+    if (!requireOperator()) return;
+    const limit = Math.min(Number(url.searchParams.get("limit")) || 100, 1000);
+    const type = url.searchParams.get("type");
+    const events = (await services.store?.listEvents?.(type ? { type } : {}, limit)) || [];
+    return json(res, 200, { events });
+  }
+
   // runs API (the run pipeline)
   if (method === "POST" && pathname === "/api/runs") {
     if (!requireOperator()) return;

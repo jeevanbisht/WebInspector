@@ -164,12 +164,11 @@ systemctl/kubectl execution is verified on those hosts; the command/unit builder
   health-gated progression, automatic rollback, immutable versioned bundles.
 - **Reboot safety** — supervisor runs as an auto-start OS service, survives reboot, and
   re-registers on boot.
-- **Observability** — structured logs, up-channel telemetry, health + Prometheus metrics (`GET /api/metrics`) endpoints, append-only
-  events covering management actions as well as test execution.
+- **Observability** — structured logs, up-channel telemetry, health + Prometheus metrics (`GET /api/metrics`) endpoints, append-only events\n  (`GET /api/events`) covering management actions as well as test execution.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 77
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 78
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -200,7 +199,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 77 integration tests
+npm test                 # 78 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 

@@ -30,6 +30,9 @@ export const DEFAULT_CONTROL_PLANE_CONFIG = Object.freeze({
       publisherPublicKeys: [],
       requireSignature: false,
     },
+    // mTLS: when true (and TLS is on), the server requests a client cert on the control channel
+    // + data plane and authenticates nodes by the cert fingerprint pinned at enrollment.
+    mtls: false,
   },
   // Desired versions the reconciler converges every node to (central update target).
   desiredVersions: versionSnapshot(),
@@ -104,6 +107,9 @@ export function loadControlPlaneConfig(overrides = {}) {
   }
   if (!overrides?.state?.driver && process.env.WEBINSPECTOR_STATE_DRIVER) {
     merged.state = { ...merged.state, driver: process.env.WEBINSPECTOR_STATE_DRIVER, persist: true };
+  }
+  if (overrides?.security?.mtls === undefined && process.env.WEBINSPECTOR_MTLS) {
+    merged.security = { ...merged.security, mtls: process.env.WEBINSPECTOR_MTLS !== "0" };
   }
   return merged;
 }

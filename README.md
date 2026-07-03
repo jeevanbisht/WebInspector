@@ -140,8 +140,9 @@ intended mapping documented.
 
 ## Best practices baked in
 
-- **Security** — **optional in-process TLS** (single-port HTTPS + `wss`; operator-provided
-  cert/key, mTLS-ready), authenticated control channel (enrollment token → durable node
+- **Security** — **optional in-process TLS** (single-port HTTPS + `wss`) with **opt-in mTLS**
+  (nodes authenticate by a client cert pinned at enrollment; the bearer credential still works),
+  authenticated control channel (enrollment token → durable node
   credential) and **operator-authenticated `/api/*`** — mutations *and* inventory/run reads —
   (bearer PAT, pluggable for OIDC/session), **ed25519-signed + SHA-256-verified update bundles**
   (verified on publish and again before apply), enrollment tokens + node credentials stored
@@ -157,7 +158,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 59
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 62
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -189,7 +190,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 59 integration tests
+npm test                 # 62 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 
@@ -212,7 +213,9 @@ a restart — set `WEBINSPECTOR_STATE_DRIVER=sqlite` for the indexed, transactio
 Serve over HTTPS (recommended on any shared network) by setting `WEBINSPECTOR_TLS_CERT_FILE`
 and `WEBINSPECTOR_TLS_KEY_FILE` (PEM) — the whole single port, including the `wss` control
 channel, is then encrypted. Agents trust a private CA via `NODE_EXTRA_CA_CERTS`. Without TLS
-the server logs a cleartext warning at startup.
+the server logs a cleartext warning at startup. Set `WEBINSPECTOR_MTLS=1` (with TLS) to also
+require a node **client certificate** — its fingerprint is pinned when the node enrolls (pass
+`clientCertPem`), and the agent presents the cert on the `wss` control channel.
 
 ## Continuing the build
 

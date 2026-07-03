@@ -65,7 +65,7 @@ export function createControlPlaneServer(overrides = {}) {
   const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, operatorAuth, reboot, reconciler, blobStore, dataPlane, selection, orchestrator, finalReport };
 
   // Optional in-process TLS: serve the single port over HTTPS when a cert+key are configured.
-  const tlsOptions = loadTlsOptions(config.server.tls);
+  const tlsOptions = loadTlsOptions(config.server.tls, config.security?.mtls);
   const scheme = tlsOptions ? "https" : "http";
   services.scheme = scheme;
   const handler = (req, res) => route(req, res, services).catch((e) => fail(res, e));
@@ -107,9 +107,16 @@ function buildStore(overrides, config) {
 }
 
 // Load a cert+key pair for HTTPS when both file paths are configured; otherwise plain HTTP.
-function loadTlsOptions(tlsCfg) {
+// With mTLS on, the server also requests a client cert (verified at the app layer by the
+// fingerprint pinned at enrollment), so self-signed node certs must reach the handler.
+function loadTlsOptions(tlsCfg, mtls = false) {
   if (!tlsCfg?.certFile || !tlsCfg?.keyFile) return null;
-  return { cert: readFileSync(tlsCfg.certFile), key: readFileSync(tlsCfg.keyFile) };
+  const opts = { cert: readFileSync(tlsCfg.certFile), key: readFileSync(tlsCfg.keyFile) };
+  if (mtls) {
+    opts.requestCert = true;
+    opts.rejectUnauthorized = false;
+  }
+  return opts;
 }
 
 async function route(req, res, services) {

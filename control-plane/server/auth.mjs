@@ -8,16 +8,32 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
 export function verifyNodeAuth(req, enrollment) {
-  const header = req.headers?.authorization || "";
-  const m = /^Bearer\s+(.+)$/i.exec(header);
-  if (!m) return { ok: false, reason: "missing bearer credential" };
-  const credential = m[1].trim();
   // nodeId (nodeType:nodeName) carries a colon, so it travels in its own header rather than
   // being packed into the bearer value.
   const nodeId = req.headers?.["x-node-id"];
   if (!nodeId) return { ok: false, reason: "missing x-node-id" };
-  if (!enrollment.verifyCredential(nodeId, credential)) return { ok: false, reason: "unknown or revoked node credential" };
-  return { ok: true, nodeId };
+
+  // mTLS: a client certificate pinned at enrollment authenticates the node. When TLS + mTLS
+  // are enabled the server requests the cert; self-signed certs reach here for app-level pinning.
+  const fingerprint = peerCertFingerprint(req);
+  if (fingerprint && enrollment.verifyClientCert?.(nodeId, fingerprint)) {
+    return { ok: true, nodeId, method: "mtls" };
+  }
+
+  // Durable bearer credential.
+  const m = /^Bearer\s+(.+)$/i.exec(req.headers?.authorization || "");
+  if (!m) return { ok: false, reason: fingerprint ? "client certificate not recognized" : "missing bearer credential" };
+  if (!enrollment.verifyCredential(nodeId, m[1].trim())) return { ok: false, reason: "unknown or revoked node credential" };
+  return { ok: true, nodeId, method: "bearer" };
+}
+
+function peerCertFingerprint(req) {
+  try {
+    const cert = req.socket?.getPeerCertificate?.();
+    return cert && cert.fingerprint256 ? cert.fingerprint256 : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Headers a node/agent sends on the control channel + data plane. */

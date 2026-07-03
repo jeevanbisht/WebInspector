@@ -21,6 +21,7 @@ import { readInstalledVersion } from "../updater/version.mjs";
 import { createCommandRouter } from "../commands/index.mjs";
 import { isDownMessage } from "../../shared/protocol/control-channel.mjs";
 import { versionSnapshot } from "../../shared/contracts/versions.mjs";
+import { collectNodeInfo } from "./node-info.mjs";
 
 export async function main({ installRoot = process.env.WEBINSPECTOR_INSTALL_ROOT || defaultInstallRoot() } = {}) {
   const config = loadSupervisorConfig(installRoot);
@@ -52,13 +53,16 @@ export async function main({ installRoot = process.env.WEBINSPECTOR_INSTALL_ROOT
   // Ensure the worker is running before we advertise readiness.
   await workerManager.ensureRunning(installedVersions.agentVersion);
 
+  // Collect the node's IPs once at startup so the ControlPlane/Portal can show them.
+  const nodeInfo = await collectNodeInfo();
+
   const connection = createConnection({
     controlPlaneUrl: identity.controlPlaneUrl,
     controlChannelPath: identity.controlChannelUrl || "/agent/channel",
     nodeId: identity.nodeId,
     nodeCredential: identity.nodeCredential,
     intervals: config.intervals,
-    onOpen: () => connection.sendUp("hello", buildHello({ identity, installedVersions })),
+    onOpen: () => connection.sendUp("hello", buildHello({ identity, installedVersions, metadata: { privateIp: nodeInfo.privateIp, publicIp: nodeInfo.publicIp } })),
     onMessage: (msg) => {
       if (isDownMessage(msg) && msg.type === "command") router.handle(msg);
     },
@@ -75,7 +79,7 @@ export async function main({ installRoot = process.env.WEBINSPECTOR_INSTALL_ROOT
       // Report the FULL version set (contracts/protocol/schema too), consistent with `hello`,
       // so the ControlPlane's selection compatibility gate stays satisfied across heartbeats.
       versions: versionSnapshot(installedVersions),
-      metadata: { worker: workerManager.status() },
+      metadata: { worker: workerManager.status(), privateIp: nodeInfo.privateIp, publicIp: nodeInfo.publicIp },
     }),
   });
 

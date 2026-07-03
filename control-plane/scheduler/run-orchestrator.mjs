@@ -43,13 +43,19 @@ export function createRunOrchestrator({ store = null, registry, dispatcher, sele
     runs.set(runId, run);
     persist("runs", runId, run);
     emit("run_created", { runId });
-    for (const u of urlList) queueUrl(runId, u);
+    for (const u of urlList) queueUrl(runId, u, { deferComplete: true });
+    maybeCompleteRun(runId); // all URLs queued — a run of only-blocked URLs completes immediately
     return run;
   }
 
-  function queueUrl(runId, rawUrl) {
+  function queueUrl(runId, rawUrl, { deferComplete = false } = {}) {
     const run = runs.get(runId);
     if (!run) throw httpErr(404, `unknown run: ${runId}`);
+    // Adding work to a finished run re-opens it until the new URL settles.
+    if (run.status === "completed") {
+      run.status = "running";
+      persist("runs", runId, run);
+    }
     const url = normalizeUrl(rawUrl);
     const urlId = `url-${Date.now()}-${rand()}`;
     const sel = selection.selectForUrl();
@@ -70,7 +76,22 @@ export function createRunOrchestrator({ store = null, registry, dispatcher, sele
     emit("url_queued", { runId, urlId, url });
     if (sel.canDispatch) dispatchStage(record, "initial_test");
     else emit("url_blocked", { runId, urlId, data: { unmet: sel.unmet } });
+    if (!deferComplete) maybeCompleteRun(runId); // a standalone blocked URL still settles the run
     return record;
+  }
+
+  // Mark a run "completed" once every one of its URLs has reached a terminal state. Called after
+  // each URL finalizes (and after createRun/queueUrl) so the Portal's run status actually updates.
+  function maybeCompleteRun(runId) {
+    const run = runs.get(runId);
+    if (!run || run.status === "completed") return;
+    const terminal = new Set(["completed", "failed", "blocked"]);
+    const allDone = run.urlIds.length > 0 && run.urlIds.every((id) => terminal.has(urls.get(id)?.status));
+    if (!allDone) return;
+    run.status = "completed";
+    run.completedAt = new Date().toISOString();
+    persist("runs", runId, run);
+    emit("run_completed", { runId, data: { urls: run.urlIds.length } });
   }
 
   function dispatchStage(url, stage) {
@@ -150,6 +171,7 @@ export function createRunOrchestrator({ store = null, registry, dispatcher, sele
     url.classification = c.classification;
     persist("urls", url.id, url);
     emit("url_completed", { runId: url.runId, urlId: url.id, data: { classification: c.classification } });
+    maybeCompleteRun(url.runId); // this URL is done — settle the run if it was the last one
   }
 
   function getRun(runId) {

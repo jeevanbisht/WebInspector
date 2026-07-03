@@ -39,6 +39,7 @@ export const EVENT_TYPES = Object.freeze([
   "comparison_completed",
   "packet_generated",
   "url_completed",
+  "run_completed",
   "artifact_uploaded",
   // recovery
   "recovery_started",

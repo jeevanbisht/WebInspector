@@ -75,11 +75,27 @@ async function pollHealth() {
 // --- nodes ---
 function actionButtons(node) {
   const n = encodeURIComponent(node.nodeName);
-  return `
-    <button data-act="reboot" data-node="${n}">Reboot</button>
-    <button data-act="drain" data-node="${n}">Drain</button>
-    <button data-act="undrain" data-node="${n}">Undrain</button>
-    <button data-act="restart_worker" data-node="${n}">Restart worker</button>`;
+  // One context-aware drain toggle instead of two buttons; the rest are compact.
+  const drain =
+    node.status === "draining"
+      ? `<button data-act="undrain" data-node="${n}">Undrain</button>`
+      : `<button data-act="drain" data-node="${n}">Drain</button>`;
+  return `${drain}
+    <button data-act="restart_worker" data-node="${n}">Restart</button>
+    <button data-act="reboot" data-node="${n}">Reboot</button>`;
+}
+
+// Node IP: prefer the public egress IP (what target sites see); fall back to the private IP.
+function nodeIp(n) {
+  return n.metadata?.publicIp || n.metadata?.privateIp || "—";
+}
+
+// Version: show the agent version; if the supervisor differs, show both compactly.
+function nodeVersion(n) {
+  const a = n.versions?.agentVersion;
+  const s = n.versions?.controlPlaneAgentVersion;
+  if (!a && !s) return "—";
+  return !s || a === s ? a || s : `${a} / ${s}`;
 }
 
 async function loadNodes() {
@@ -87,7 +103,7 @@ async function loadNodes() {
   try {
     const { nodes } = await api.get("/api/nodes");
     if (!nodes?.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="muted">no nodes registered yet — onboard one from the Onboarding tab</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="muted">no nodes registered yet — onboard one from the Onboarding tab</td></tr>`;
       return;
     }
     tbody.innerHTML = nodes
@@ -96,16 +112,15 @@ async function loadNodes() {
           <td>${n.nodeName || "?"}</td>
           <td>${n.nodeType || "?"}</td>
           <td><span class="pill ${statusClass(n.status)}">${n.status || "?"}</span></td>
-          <td>${n.versions?.agentVersion || "—"}</td>
-          <td>${n.versions?.controlPlaneAgentVersion || "—"}</td>
-          <td>${n.metadata?.publicIp || "—"}</td>
+          <td>${nodeVersion(n)}</td>
+          <td>${nodeIp(n)}</td>
           <td>${n.lastHeartbeatAt ? new Date(n.lastHeartbeatAt).toLocaleTimeString() : "—"}</td>
           <td class="actions">${actionButtons(n)}</td>
         </tr>`,
       )
       .join("");
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="8" class="fail">${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="fail">${e.message}</td></tr>`;
   }
 }
 
@@ -272,3 +287,4 @@ pollHealth();
 refreshAll();
 setInterval(pollHealth, 10000);
 setInterval(loadNodes, 15000);
+setInterval(loadRuns, 15000); // keep run status live (running → completed) without a manual refresh

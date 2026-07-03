@@ -75,6 +75,8 @@ test("run pipeline: all arms healthy -> completed healthy", { timeout: 20000 }, 
 
     await waitFor(() => orchestrator.getRun(run.id).urls[0].status === "completed");
     assert.equal(orchestrator.getRun(run.id).urls[0].classification, "healthy");
+    // The parent run must flip running → completed once its only URL settles.
+    await waitFor(() => orchestrator.getRun(run.id).run.status === "completed");
   } finally {
     conns.forEach((c) => c.close());
     await app.close();
@@ -98,6 +100,7 @@ test("run pipeline: gsa fails -> browser validation -> likely_gsa_impacting", { 
 
     await waitFor(() => orchestrator.getRun(run.id).urls[0].status === "completed");
     assert.equal(orchestrator.getRun(run.id).urls[0].classification, "likely_gsa_impacting");
+    await waitFor(() => orchestrator.getRun(run.id).run.status === "completed");
   } finally {
     conns.forEach((c) => c.close());
     await app.close();

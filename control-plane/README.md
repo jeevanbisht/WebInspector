@@ -50,7 +50,10 @@ run orchestrator (queue → dispatch → results → comparison → complete) wi
 
 **Implemented:** reporting renders the run model to HTML (per-URL arm matrix, node inventory,
 failure evidence with vendor/reference-ids/redirect-depth + screenshot/HAR links) and CSV
-(`reporting/final-report.mjs`, tested by `test/final-report.test.mjs`).
+(`reporting/final-report.mjs`), served at `GET /api/runs/:id/report.{html,csv}` from the store.
 
-**Partial / TODO:** the durable state store exists but is not wired on by default
-(in-memory today); the per-site evidence packet does not yet verify/persist artifacts.
+**Wired:** the durable state store is on by default for the CLI (disk-backed localJson at
+`./state/db`; in-memory for embedded/test use) — runs/results/comparisons survive a restart.
+
+**Partial / TODO:** the per-site evidence packet does not yet verify/persist artifacts; the
+localJson adapter is single-instance (swap for SQLite/Postgres + a command bus to scale out).

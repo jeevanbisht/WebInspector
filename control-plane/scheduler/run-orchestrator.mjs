@@ -97,7 +97,7 @@ export function createRunOrchestrator({ store = null, registry, dispatcher, sele
     if (!url) return;
     const bucket = resultsByUrl.get(url.id);
     const nodeType = job.nodeType || url.selectedNodes.find((n) => n.nodeName === job.nodeName)?.nodeType || null;
-    const rec = { ...summary, nodeName: job.nodeName, nodeType, stage: job.stage };
+    const rec = { ...summary, runId: url.runId, urlId: url.id, nodeName: job.nodeName, nodeType, stage: job.stage };
     bucket.set(`${job.nodeName}:${job.stage}`, rec);
     persist("results", summary.jobId, rec);
     emit("result_recorded", { runId: url.runId, urlId: url.id, jobId: summary.jobId, data: { stage: job.stage, ok: summary.ok } });

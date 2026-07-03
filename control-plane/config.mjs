@@ -54,6 +54,13 @@ export const DEFAULT_CONTROL_PLANE_CONFIG = Object.freeze({
   paths: {
     stateDir: "./state",
   },
+  state: {
+    // Persist runs/results/comparisons to disk so they survive a restart. The CLI enables this
+    // by default (writes to `${paths.stateDir}/db`); embedded/test usage stays in-memory unless
+    // a dir is configured (WEBINSPECTOR_STATE_DIR) or persist is turned on.
+    persist: false,
+    dir: null,
+  },
 });
 
 export function loadControlPlaneConfig(overrides = {}) {
@@ -84,6 +91,13 @@ export function loadControlPlaneConfig(overrides = {}) {
         keyFile: process.env.WEBINSPECTOR_TLS_KEY_FILE || merged.server.tls.keyFile,
       },
     };
+  }
+  // Durable state: a configured dir (or explicit flag) turns persistence on.
+  if (!overrides?.state?.dir && process.env.WEBINSPECTOR_STATE_DIR) {
+    merged.state = { ...merged.state, dir: process.env.WEBINSPECTOR_STATE_DIR, persist: true };
+  }
+  if (overrides?.state?.persist === undefined && process.env.WEBINSPECTOR_STATE_PERSIST) {
+    merged.state = { ...merged.state, persist: process.env.WEBINSPECTOR_STATE_PERSIST !== "0" };
   }
   return merged;
 }

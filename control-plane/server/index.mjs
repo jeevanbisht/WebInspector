@@ -30,13 +30,18 @@ import { createDataPlane } from "./data-plane.mjs";
 import { createNodeSelection } from "../scheduler/node-selection.mjs";
 import { createSitePacket } from "../reporting/site-packet.mjs";
 import { createRunOrchestrator } from "../scheduler/run-orchestrator.mjs";
+import { createStateStore } from "../state/store.mjs";
+import { localJsonAdapter } from "../state/adapters/local-json.mjs";
+import { memoryAdapter } from "../state/adapters/memory.mjs";
+import { createFinalReport } from "../reporting/final-report.mjs";
 
 export function createControlPlaneServer(overrides = {}) {
   const config = loadControlPlaneConfig(overrides);
   const baseUrl = overrides.baseUrl || `http://localhost:${config.server.port}`;
 
   // --- object graph (shared by control + data planes) ---
-  const store = overrides.store || null; // TODO: createStateStore(localJsonAdapter(config.paths.stateDir))
+  // Durable state store: disk-backed (survives restart) when persistence is on, else in-memory.
+  const store = buildStore(overrides, config);
   const registry = createRegistry({ store });
   const dispatcher = createDispatcher({ registry, store });
   const bundleRegistry = createBundleRegistry({ baseUrl, store });
@@ -54,8 +59,9 @@ export function createControlPlaneServer(overrides = {}) {
   const selection = createNodeSelection({ registry, config });
   const sitePacket = createSitePacket({ store, artifacts: blobStore });
   const orchestrator = createRunOrchestrator({ store, registry, dispatcher, selection, sitePacket });
+  const finalReport = createFinalReport({ store });
 
-  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, operatorAuth, reboot, reconciler, blobStore, dataPlane, selection, orchestrator };
+  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, operatorAuth, reboot, reconciler, blobStore, dataPlane, selection, orchestrator, finalReport };
 
   // Optional in-process TLS: serve the single port over HTTPS when a cert+key are configured.
   const tlsOptions = loadTlsOptions(config.server.tls);
@@ -72,7 +78,8 @@ export function createControlPlaneServer(overrides = {}) {
   return {
     services,
     scheme,
-    listen(port = config.server.port, host = config.server.host) {
+    async listen(port = config.server.port, host = config.server.host) {
+      await store?.init?.();
       reconciler.start({ intervalMs: 5000 });
       return new Promise((resolve) => server.listen(port, host, () => resolve({ port, host })));
     },
@@ -82,6 +89,15 @@ export function createControlPlaneServer(overrides = {}) {
       return new Promise((resolve) => server.close(resolve));
     },
   };
+}
+
+// Build the state store: an explicit override wins (may be null); otherwise a disk-backed store
+// when persistence is on, else in-memory. Persisted state survives a ControlPlane restart.
+function buildStore(overrides, config) {
+  if (overrides.store !== undefined) return overrides.store;
+  const st = config.state || {};
+  const dir = st.dir || `${config.paths.stateDir}/db`;
+  return createStateStore(st.persist ? localJsonAdapter(dir) : memoryAdapter());
 }
 
 // Load a cert+key pair for HTTPS when both file paths are configured; otherwise plain HTTP.
@@ -170,6 +186,14 @@ async function route(req, res, services) {
       if (!requireOperator()) return;
       const details = services.orchestrator.getRun(runId);
       return details ? json(res, 200, details) : json(res, 404, { error: "run not found" });
+    }
+    // Final report rendered from the DURABLE store (survives restart): report.html | report.csv
+    if (method === "GET" && parts.length === 5 && parts[4].startsWith("report")) {
+      if (!requireOperator()) return;
+      const csv = parts[4] === "report.csv";
+      const body = csv ? await services.finalReport.renderCsv(runId) : await services.finalReport.renderHtml(runId);
+      res.writeHead(200, { "content-type": csv ? "text/csv; charset=utf-8" : "text/html; charset=utf-8", "content-length": Buffer.byteLength(body) });
+      return res.end(body);
     }
   }
 
@@ -263,7 +287,7 @@ function contentTypeFor(p) {
 
 // CLI entry
 if (process.argv[1]?.endsWith("server/index.mjs") || process.argv[1]?.endsWith("index.mjs")) {
-  const app = createControlPlaneServer();
+  const app = createControlPlaneServer({ state: { persist: true } }); // real server persists to ./state/db
   app.listen().then(({ port, host }) => {
     console.log(`[control-plane] listening on ${app.scheme}://${host}:${port}`);
     if (app.scheme === "http") {

@@ -157,7 +157,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 45
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 49
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -175,18 +175,21 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 | Zero-touch onboarding | Control-plane side (enrollment) + Windows bootstrap install path |
 | Cross-platform provider | Windows implemented; Linux + Kubernetes stubbed with documented mapping |
 | Final report (HTML/CSV) | Per-URL arm matrix (Azure Direct / GSA_RNet / GSA_CLIENT / CloudFlare / External), classification + confidence, node inventory, and failure evidence (specific reason, vendor, reference IDs, redirect depth, screenshot/HAR links). Test: `test/final-report.test.mjs` |
+| Durable state store | Adapter-backed store (in-memory default; disk-backed via localJson, on by default for the CLI). Runs/results/comparisons survive a restart; `GET /api/runs/:id/report.{html,csv}` renders from it. Test: `test/state-store.test.mjs` |
 
 **Still stubbed / TODO**
 
 - Windows service host (nssm/winsw) so the supervisor + control-plane run as real services
-- Durable state store wired into the server by default (persist runs/results across restart)
+- Horizontal scale-out: shared state + a command bus so multiple control-plane instances can
+  route commands to the instance holding each node's session (durable single-instance store is
+  now wired; multi-instance is next)
 - Linux + Kubernetes platform providers
 
 ## Quickstart
 
 ```bash
 npm install
-npm test                 # 45 integration tests
+npm test                 # 49 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 
@@ -199,6 +202,11 @@ publish an update bundle) require an operator bearer token. Set `WEBINSPECTOR_OP
 startup so the surface is never open. The operator API — mutations **and** inventory/run reads
 (`GET /api/nodes`, `GET /api/runs`) — requires this token; only health, bootstrap, and the
 static Portal shell stay public.
+
+State is durable: the CLI persists runs/results/comparisons to `./state/db` (localJson) so they
+survive a restart — set `WEBINSPECTOR_STATE_DIR` to relocate, or `WEBINSPECTOR_STATE_PERSIST=0`
+to run in-memory. A run's final report is available at `GET /api/runs/<id>/report.html` (and
+`report.csv`), rendered from the store.
 
 Serve over HTTPS (recommended on any shared network) by setting `WEBINSPECTOR_TLS_CERT_FILE`
 and `WEBINSPECTOR_TLS_KEY_FILE` (PEM) — the whole single port, including the `wss` control

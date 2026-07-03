@@ -37,5 +37,6 @@ small summaries + `artifact_ref` / `result_ref` pointers. The bytes go on the da
 - `probe/initial-test.mjs` — **implemented**: layered DNS/TCP/TLS/HTTP probe with redirect
   chain, failure-layer classification, and edge/WAF vendor + reference-id detection.
 - `core/*`, `metadata/*`, `artifacts/upload.mjs` — **implemented** (stdio IPC + data-plane upload).
-- `browser/*` — **stub**: `browserValidate` returns a placeholder until the Playwright
-  validator is ported.
+- `browser/*` — **implemented**: Playwright validation (Edge `msedge` channel with bundled
+  chromium fallback) — clean context per URL, page classification, edge/WAF vendor +
+  reference-id + Akamai `_abck` detection, redirect chain, screenshot always + failure-only HAR.

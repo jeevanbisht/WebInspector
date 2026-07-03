@@ -153,7 +153,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 10
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 22
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -165,6 +165,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 | Worker IPC (supervisor ↔ worker over stdio) | Job delivery + ready/result + health gate + force-kill on stop. Test: `test/worker-ipc.test.mjs` |
 | Run pipeline (queue → dispatch → compare → complete) | Orchestrator, browser-validation branch, classification, runs API. Test: `test/run-pipeline.test.mjs` |
 | Layered initial probe | DNS/TCP/TLS/HTTP with redirect chain, failure-layer classification, vendor/reference-id detection. Test: `test/probe.test.mjs` |
+| Browser validation | Playwright (Edge channel, chromium fallback): page classification, edge/WAF vendor + reference-id + Akamai `_abck` detection, screenshot always + failure-only HAR. Test: `test/browser-validation.test.mjs` |
 | Central updates | Bundle registry, canary reconciler, verify + atomic A/B swap + health-gate + rollback |
 | Remote reboot | Command + `bye` + await-reconnect (closes fully once the service host lands) |
 | Zero-touch onboarding | Control-plane side (enrollment) + Windows bootstrap install path |
@@ -172,7 +173,6 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 **Still stubbed / TODO**
 
-- Browser validation (`agent/browser/*`) — Playwright validator not yet ported (placeholder)
 - Long-poll fallback for the control channel (restrictive networks)
 - Windows service host (nssm/winsw) so the supervisor + control-plane run as real services
 - Durable state store wired into the server by default (persist runs/results across restart)
@@ -192,7 +192,6 @@ Onboard a node (zero-touch): issue an enrollment token in the Portal, then on th
 
 ## Continuing the build
 
-Remaining work is under "Still stubbed / TODO"; the natural next steps are the browser
-validator, the long-poll fallback, and the Windows service host. Every component's
-`README.md` documents its contract, and the `test/` suite is the fastest way to see the
-implemented behavior in action.
+Remaining work is under "Still stubbed / TODO"; the natural next steps are the long-poll
+fallback and the Windows service host. Every component's `README.md` documents its contract,
+and the `test/` suite is the fastest way to see the implemented behavior in action.

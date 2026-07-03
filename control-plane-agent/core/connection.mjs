@@ -19,6 +19,7 @@ export function createConnection({
   nodeCredential,
   intervals = {},
   transport = "auto", // "auto" | "websocket" | "longpoll"
+  tlsOptions = {}, // e.g. { ca } to trust a private CA; long-poll fetch trust via NODE_EXTRA_CA_CERTS
   onMessage,
   onOpen,
   onClose,
@@ -60,7 +61,7 @@ export function createConnection({
   function connectWs() {
     if (closed) return;
     let opened = false;
-    const ws = new WebSocket(wsUrl, { headers });
+    const ws = new WebSocket(wsUrl, { headers, ...tlsOptions });
     socket = ws;
     ws.on("open", () => {
       opened = true;

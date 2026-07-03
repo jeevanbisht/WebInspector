@@ -13,6 +13,8 @@
 // TODO: real WebSocket upgrade (ws) + streaming multipart for the data plane.
 
 import http from "node:http";
+import https from "node:https";
+import { readFileSync } from "node:fs";
 import { loadControlPlaneConfig } from "../config.mjs";
 import { createRegistry } from "../control/registry.mjs";
 import { createDispatcher } from "../control/dispatcher.mjs";
@@ -55,15 +57,21 @@ export function createControlPlaneServer(overrides = {}) {
 
   const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, operatorAuth, reboot, reconciler, blobStore, dataPlane, selection, orchestrator };
 
-  const server = http.createServer((req, res) => route(req, res, services).catch((e) => fail(res, e)));
+  // Optional in-process TLS: serve the single port over HTTPS when a cert+key are configured.
+  const tlsOptions = loadTlsOptions(config.server.tls);
+  const scheme = tlsOptions ? "https" : "http";
+  services.scheme = scheme;
+  const handler = (req, res) => route(req, res, services).catch((e) => fail(res, e));
+  const server = tlsOptions ? https.createServer(tlsOptions, handler) : http.createServer(handler);
 
-  // Control channel lives on the SAME port via HTTP upgrade (WebSocket) plus a long-poll
+  // Control channel lives on the SAME port via HTTP(S) upgrade (WebSocket) plus a long-poll
   // fallback (GET /agent/poll, POST /agent/push) routed below through services.controlChannel.
   const channel = attachControlChannel(server, services, { baseUrl });
   services.controlChannel = channel;
 
   return {
     services,
+    scheme,
     listen(port = config.server.port, host = config.server.host) {
       reconciler.start({ intervalMs: 5000 });
       return new Promise((resolve) => server.listen(port, host, () => resolve({ port, host })));
@@ -74,6 +82,12 @@ export function createControlPlaneServer(overrides = {}) {
       return new Promise((resolve) => server.close(resolve));
     },
   };
+}
+
+// Load a cert+key pair for HTTPS when both file paths are configured; otherwise plain HTTP.
+function loadTlsOptions(tlsCfg) {
+  if (!tlsCfg?.certFile || !tlsCfg?.keyFile) return null;
+  return { cert: readFileSync(tlsCfg.certFile), key: readFileSync(tlsCfg.keyFile) };
 }
 
 async function route(req, res, services) {
@@ -250,5 +264,10 @@ function contentTypeFor(p) {
 // CLI entry
 if (process.argv[1]?.endsWith("server/index.mjs") || process.argv[1]?.endsWith("index.mjs")) {
   const app = createControlPlaneServer();
-  app.listen().then(({ port, host }) => console.log(`[control-plane] listening on http://${host}:${port}`));
+  app.listen().then(({ port, host }) => {
+    console.log(`[control-plane] listening on ${app.scheme}://${host}:${port}`);
+    if (app.scheme === "http") {
+      console.warn("[control-plane] WARNING: serving plain HTTP — operator tokens, node credentials, and bundles travel in cleartext. Set WEBINSPECTOR_TLS_CERT_FILE + WEBINSPECTOR_TLS_KEY_FILE for HTTPS.");
+    }
+  });
 }

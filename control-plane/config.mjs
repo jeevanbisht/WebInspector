@@ -10,6 +10,9 @@ export const DEFAULT_CONTROL_PLANE_CONFIG = Object.freeze({
     portalDir: "../portal",
     bundleDir: "./state/bundles",
     blobDir: "./state/blobs",
+    // TLS: set cert+key file paths (or WEBINSPECTOR_TLS_CERT_FILE / WEBINSPECTOR_TLS_KEY_FILE)
+    // to serve the single port over HTTPS. Empty = plain HTTP (credentials travel in cleartext).
+    tls: { certFile: null, keyFile: null },
   },
   security: {
     // Node credentials authenticate the control channel + data plane. Operator auth for
@@ -70,6 +73,17 @@ export function loadControlPlaneConfig(overrides = {}) {
       .filter(Boolean)
       .map((b64) => Buffer.from(b64, "base64").toString("utf8"));
     merged.security = { ...merged.security, bundleSigning: { ...merged.security.bundleSigning, publisherPublicKeys: keys } };
+  }
+  // TLS cert/key file paths from the environment.
+  if (!overrides?.server?.tls?.certFile && (process.env.WEBINSPECTOR_TLS_CERT_FILE || process.env.WEBINSPECTOR_TLS_KEY_FILE)) {
+    merged.server = {
+      ...merged.server,
+      tls: {
+        ...merged.server.tls,
+        certFile: process.env.WEBINSPECTOR_TLS_CERT_FILE || merged.server.tls.certFile,
+        keyFile: process.env.WEBINSPECTOR_TLS_KEY_FILE || merged.server.tls.keyFile,
+      },
+    };
   }
   return merged;
 }

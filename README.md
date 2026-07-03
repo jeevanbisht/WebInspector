@@ -140,8 +140,9 @@ intended mapping documented.
 
 ## Best practices baked in
 
-- **Security** — authenticated control channel (enrollment token → durable node credential;
-  mTLS-ready) and **operator-authenticated `/api/*`** — mutations *and* inventory/run reads —
+- **Security** — **optional in-process TLS** (single-port HTTPS + `wss`; operator-provided
+  cert/key, mTLS-ready), authenticated control channel (enrollment token → durable node
+  credential) and **operator-authenticated `/api/*`** — mutations *and* inventory/run reads —
   (bearer PAT, pluggable for OIDC/session), **ed25519-signed + SHA-256-verified update bundles**
   (verified on publish and again before apply), enrollment tokens + node credentials stored
   **hashed at rest** with constant-time verification + revocation, least privilege, no secrets in repo.
@@ -156,7 +157,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 43
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 45
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -185,7 +186,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 43 integration tests
+npm test                 # 45 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 
@@ -198,6 +199,11 @@ publish an update bundle) require an operator bearer token. Set `WEBINSPECTOR_OP
 startup so the surface is never open. The operator API — mutations **and** inventory/run reads
 (`GET /api/nodes`, `GET /api/runs`) — requires this token; only health, bootstrap, and the
 static Portal shell stay public.
+
+Serve over HTTPS (recommended on any shared network) by setting `WEBINSPECTOR_TLS_CERT_FILE`
+and `WEBINSPECTOR_TLS_KEY_FILE` (PEM) — the whole single port, including the `wss` control
+channel, is then encrypted. Agents trust a private CA via `NODE_EXTRA_CA_CERTS`. Without TLS
+the server logs a cleartext warning at startup.
 
 ## Continuing the build
 

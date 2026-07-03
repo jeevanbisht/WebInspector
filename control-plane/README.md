@@ -39,7 +39,8 @@ Single port; the plane split is by endpoint, not by port (see the root README).
 
 ## Implementation status
 
-**Implemented + tested:** single-port server, control channel (WebSocket + HTTP long-poll
+**Implemented + tested:** single-port server (optional in-process TLS → HTTPS + `wss`), control
+channel (WebSocket + HTTP long-poll
 fallback), **operator auth on `/api/*` mutations** (bearer PAT, constant-time, pluggable for
 OIDC — `server/auth.mjs`, tested by `test/operator-auth.test.mjs`), agent registry, command
 dispatcher, enrollment (tokens + node credentials hashed at rest, constant-time verify +

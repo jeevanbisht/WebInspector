@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "WebInspector — control-plane + managed-agent web health validation (single-port, central updates, remote reboot, zero-touch onboarding).",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "control-plane": "node control-plane/server/index.mjs",
     "supervisor": "node control-plane-agent/core/index.mjs",
@@ -19,5 +21,8 @@
   },
   "optionalDependencies": {
     "playwright": "^1.49.0"
+  },
+  "devDependencies": {
+    "selfsigned": "^5.5.0"
   }
 }

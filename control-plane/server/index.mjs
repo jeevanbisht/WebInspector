@@ -56,8 +56,10 @@ export function createControlPlaneServer(overrides = {}) {
 
   const server = http.createServer((req, res) => route(req, res, services).catch((e) => fail(res, e)));
 
-  // Control channel lives on the SAME port via HTTP upgrade (WebSocket).
+  // Control channel lives on the SAME port via HTTP upgrade (WebSocket) plus a long-poll
+  // fallback (GET /agent/poll, POST /agent/push) routed below through services.controlChannel.
   const channel = attachControlChannel(server, services, { baseUrl });
+  services.controlChannel = channel;
 
   return {
     services,
@@ -80,6 +82,12 @@ async function route(req, res, services) {
 
   // health
   if (method === "GET" && pathname === "/api/health") return json(res, 200, { ok: true, ts: new Date().toISOString() });
+
+  // control channel — long-poll fallback (WebSocket upgrade is handled in channel.mjs)
+  if (services.controlChannel) {
+    if (method === "GET" && pathname === "/agent/poll") return services.controlChannel.handlePoll(req, res);
+    if (method === "POST" && pathname === "/agent/push") return services.controlChannel.handlePush(req, res);
+  }
 
   // bootstrap (zero-touch onboarding)
   if (method === "GET" && pathname === "/bootstrap/manifest") {

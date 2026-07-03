@@ -65,7 +65,7 @@ low-latency) and a **data plane** (bulk, resumable):
 | --- | --- | --- |
 | `GET /` , `GET /assets/*` | Portal UI (static) | Portal ↔ CP |
 | `/api/*` | REST API (nodes, runs, jobs, commands, enrollment) | Portal/tools ↔ CP |
-| `/agent/channel` | Persistent bidirectional control channel (WebSocket, long-poll fallback). Small messages + refs only. | Control · Agent ↔ CP |
+| `/agent/channel` · `/agent/poll` · `/agent/push` | Persistent bidirectional control channel — WebSocket, with an HTTP long-poll fallback (`GET /agent/poll` down, `POST /agent/push` up). Small messages + refs only. | Control · Agent ↔ CP |
 | `GET /bootstrap/install.ps1` | Tiny scriptable onboarding entrypoint | CP → VM |
 | `GET /bootstrap/bootstrap.mjs` | Cross-platform bootstrap orchestrator | CP → VM |
 | `GET /bootstrap/manifest` | Desired supervisor version + bundle reference | CP → VM |
@@ -153,14 +153,14 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 22
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 24
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
 
 | Area | State |
 | --- | --- |
-| Control channel (single port, WebSocket) | Auth, register, heartbeat, bidirectional commands + results. Test: `test/control-channel.test.mjs` |
+| Control channel (single port) | WebSocket **and** an HTTP long-poll fallback behind one auth check + one inbound router: auth, register, heartbeat, bidirectional commands + results, with transparent WS→long-poll auto-failover. Tests: `test/control-channel.test.mjs`, `test/control-channel-longpoll.test.mjs` |
 | Data plane (content-addressed) | Publish/stream bundles, upload/serve artifacts (SHA-256 verified), result ingest. Test: `test/data-plane.test.mjs` |
 | Worker IPC (supervisor ↔ worker over stdio) | Job delivery + ready/result + health gate + force-kill on stop. Test: `test/worker-ipc.test.mjs` |
 | Run pipeline (queue → dispatch → compare → complete) | Orchestrator, browser-validation branch, classification, runs API. Test: `test/run-pipeline.test.mjs` |
@@ -173,7 +173,6 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 **Still stubbed / TODO**
 
-- Long-poll fallback for the control channel (restrictive networks)
 - Windows service host (nssm/winsw) so the supervisor + control-plane run as real services
 - Durable state store wired into the server by default (persist runs/results across restart)
 - Final report renderer (HTML/CSV) — model assembled, rendering is a stub
@@ -192,6 +191,6 @@ Onboard a node (zero-touch): issue an enrollment token in the Portal, then on th
 
 ## Continuing the build
 
-Remaining work is under "Still stubbed / TODO"; the natural next steps are the long-poll
-fallback and the Windows service host. Every component's `README.md` documents its contract,
-and the `test/` suite is the fastest way to see the implemented behavior in action.
+Remaining work is under "Still stubbed / TODO"; the natural next step is the Windows service
+host. Every component's `README.md` documents its contract, and the `test/` suite is the
+fastest way to see the implemented behavior in action.

@@ -71,3 +71,9 @@ button:hover { filter: brightness(1.08); }
 }
 label { display: block; margin: 10px 0; color: var(--muted); }
 select { background: #0b1119; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px; margin-left: 8px; }
+
+/* operator token box + run URL input (moved from inline <style> so a strict CSP applies) */
+.tokenbox { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.tokenbox input { width: 200px; padding: 4px 6px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+.row { display: flex; gap: 8px; align-items: center; margin: 10px 0; }
+.row input { flex: 1; padding: 6px 8px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }

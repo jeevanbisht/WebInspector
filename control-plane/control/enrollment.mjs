@@ -36,6 +36,7 @@ export function createEnrollmentService({ store = null, controlChannelPath = "/a
   };
 
   function issueToken({ nodeType, ttlMs = tokenTtlMs, oneTimeUse = true, issuedBy = null } = {}) {
+    sweepExpired(); // opportunistic cleanup of expired tokens
     const token = `enr_${randomBytes(24).toString("base64url")}`;
     const record = {
       nodeType: nodeType || null, // null = any allowed type
@@ -56,7 +57,11 @@ export function createEnrollmentService({ store = null, controlChannelPath = "/a
     const tokenHash = enrollmentToken ? sha256Hex(enrollmentToken) : null;
     const rec = tokenHash ? tokens.get(tokenHash) : null;
     if (!rec) throw enrollError(401, "unknown enrollment token");
-    if (Date.now() > rec.expiresAt) throw enrollError(401, "enrollment token expired");
+    if (Date.now() > rec.expiresAt) {
+      tokens.delete(tokenHash);
+      remove("enrollments", tokenHash);
+      throw enrollError(401, "enrollment token expired");
+    }
     if (rec.oneTimeUse && rec.used) throw enrollError(409, "enrollment token already used");
 
     const { nodeName, nodeType } = assertNodeIdentity(identity || {});
@@ -120,6 +125,19 @@ export function createEnrollmentService({ store = null, controlChannelPath = "/a
     return tokens.delete(tokenHash);
   }
 
+  /** Remove expired enrollment tokens (from memory + store). Returns the count removed. */
+  function sweepExpired(now = Date.now()) {
+    let removed = 0;
+    for (const [hash, rec] of tokens) {
+      if (rec.expiresAt && now > rec.expiresAt) {
+        tokens.delete(hash);
+        remove("enrollments", hash);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
   /** Hydrate tokens + credentials from the durable store on startup (post-restart recovery). */
   async function load() {
     if (!store) return;
@@ -133,7 +151,7 @@ export function createEnrollmentService({ store = null, controlChannelPath = "/a
     }
   }
 
-  return { issueToken, enroll, verifyCredential, verifyClientCert, revokeCredential, revokeToken, load };
+  return { issueToken, enroll, verifyCredential, verifyClientCert, revokeCredential, revokeToken, sweepExpired, load };
 }
 
 // Normalize an X.509 sha256 fingerprint ("AA:BB:..") to a bare lowercase hex string.

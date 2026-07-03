@@ -35,6 +35,7 @@ import { localJsonAdapter } from "../state/adapters/local-json.mjs";
 import { memoryAdapter } from "../state/adapters/memory.mjs";
 import { sqliteAdapter } from "../state/adapters/sqlite.mjs";
 import { createFinalReport } from "../reporting/final-report.mjs";
+import { createRateLimiter } from "./rate-limit.mjs";
 
 export function createControlPlaneServer(overrides = {}) {
   const config = loadControlPlaneConfig(overrides);
@@ -53,6 +54,7 @@ export function createControlPlaneServer(overrides = {}) {
   });
   const enrollment = createEnrollmentService({ store, tokenTtlMs: config.security.enrollmentTokenTtlMs });
   const operatorAuth = overrides.operatorAuth || createOperatorAuth({ tokens: config.security.operatorTokens, logger: console });
+  const enrollLimiter = createRateLimiter(config.security.enrollRateLimit);
   const reboot = createRebootManager({ dispatcher, registry, store });
   const reconciler = createReconciler({ registry, dispatcher, updateManager });
   const blobStore = createBlobStore({ dir: config.server.blobDir });
@@ -62,13 +64,16 @@ export function createControlPlaneServer(overrides = {}) {
   const orchestrator = createRunOrchestrator({ store, registry, dispatcher, selection, sitePacket });
   const finalReport = createFinalReport({ store });
 
-  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, operatorAuth, reboot, reconciler, blobStore, dataPlane, selection, orchestrator, finalReport };
+  const services = { config, store, registry, dispatcher, bundleRegistry, updateManager, enrollment, operatorAuth, enrollLimiter, reboot, reconciler, blobStore, dataPlane, selection, orchestrator, finalReport };
 
   // Optional in-process TLS: serve the single port over HTTPS when a cert+key are configured.
   const tlsOptions = loadTlsOptions(config.server.tls, config.security?.mtls);
   const scheme = tlsOptions ? "https" : "http";
   services.scheme = scheme;
-  const handler = (req, res) => route(req, res, services).catch((e) => fail(res, e));
+  const handler = (req, res) => {
+    setSecurityHeaders(res);
+    return route(req, res, services).catch((e) => fail(res, e));
+  };
   const server = tlsOptions ? https.createServer(tlsOptions, handler) : http.createServer(handler);
 
   // Control channel lives on the SAME port via HTTP(S) upgrade (WebSocket) plus a long-poll
@@ -119,6 +124,18 @@ function loadTlsOptions(tlsCfg, mtls = false) {
   return opts;
 }
 
+// Baseline security headers on every response (the Portal is same-origin, no inline scripts).
+function setSecurityHeaders(res) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; connect-src 'self'");
+}
+
+function clientIp(req) {
+  return req.socket?.remoteAddress || "unknown";
+}
+
 async function route(req, res, services) {
   const url = new URL(req.url, "http://localhost");
   const { pathname } = url;
@@ -159,6 +176,9 @@ async function route(req, res, services) {
     return json(res, 201, services.enrollment.issueToken({ ...body, issuedBy: "operator" }));
   }
   if (method === "POST" && pathname === "/api/enroll") {
+    if (services.enrollLimiter && !services.enrollLimiter.allow(clientIp(req))) {
+      return json(res, 429, { error: "rate limit exceeded" });
+    }
     const body = await readJson(req);
     try {
       return json(res, 200, services.enrollment.enroll(body));

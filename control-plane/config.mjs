@@ -33,6 +33,8 @@ export const DEFAULT_CONTROL_PLANE_CONFIG = Object.freeze({
     // mTLS: when true (and TLS is on), the server requests a client cert on the control channel
     // + data plane and authenticates nodes by the cert fingerprint pinned at enrollment.
     mtls: false,
+    // Fixed-window rate limit for the unauthenticated /api/enroll endpoint (per client IP).
+    enrollRateLimit: { windowMs: 60000, max: 60 },
   },
   // Desired versions the reconciler converges every node to (central update target).
   desiredVersions: versionSnapshot(),

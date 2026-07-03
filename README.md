@@ -149,7 +149,7 @@ systemctl/kubectl execution is verified on those hosts; the command/unit builder
   credential) and **operator-authenticated `/api/*`** — mutations *and* inventory/run reads —
   (bearer PAT, pluggable for OIDC/session), **ed25519-signed + SHA-256-verified update bundles**
   (verified on publish and again before apply), enrollment tokens + node credentials stored
-  **hashed at rest** with constant-time verification + revocation, least privilege, no secrets in repo.
+  **hashed at rest** with constant-time verification + revocation, baseline security headers (CSP/nosniff/frame-deny), per-IP enroll rate limiting, expired-token cleanup, least privilege, no secrets in repo.
 - **Reliability** — reconnect with backoff, idempotent commands (dedupe by `commandId`),
   ack + result correlation, graceful drain, watchdog self-heal.
 - **Updates** — desired-state reconciliation, canary-first rollout, atomic A/B swap,
@@ -161,7 +161,7 @@ systemctl/kubectl execution is verified on those hosts; the command/unit builder
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 67
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 71
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -192,7 +192,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 67 integration tests
+npm test                 # 71 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 

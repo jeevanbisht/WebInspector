@@ -58,5 +58,9 @@ credentials + enrollment tokens + last-known registry)** survive a restart, so a
 without re-enrolling. Drivers: `sqlite` (built-in `node:sqlite`, indexed + transactional),
 `localjson`, or `memory` (`WEBINSPECTOR_STATE_DRIVER`).
 
-**Partial / TODO:** the per-site evidence packet does not yet verify/persist artifacts; the
-store is single-instance (a Postgres adapter + a command bus are the multi-instance step).
+**Implemented:** the per-site evidence packet collects each browser-validation's artifacts,
+flags any missing REQUIRED evidence (screenshot always; HAR on failure) so completeness is
+auditable, and persists the manifest to the store (`reporting/site-packet.mjs`).
+
+**Partial / TODO:** the store is single-instance (a Postgres adapter + a command bus are the
+multi-instance scale-out step).

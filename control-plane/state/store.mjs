@@ -22,6 +22,7 @@ export const TABLES = Object.freeze([
   "commands",
   "enrollments",
   "credentials",
+  "site_packets",
   "node_update_events",
 ]);
 

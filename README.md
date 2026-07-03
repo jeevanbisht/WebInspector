@@ -157,7 +157,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 56
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 59
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -189,7 +189,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 56 integration tests
+npm test                 # 59 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 

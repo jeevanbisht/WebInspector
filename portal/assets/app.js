@@ -7,19 +7,34 @@ const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
 const authHeaders = () => (getToken() ? { authorization: "Bea" + "rer " + getToken() } : {});
 
 function checkStatus(path, r) {
-  if (r.status === 401) throw new Error("401 — set a valid operator token (top-right)");
+  if (r.status === 401) {
+    setAuthNeeded(true);
+    throw new Error("401 — set a valid operator token (top-right)");
+  }
   if (!r.ok) throw new Error(`${path} → ${r.status}`);
+  return r;
+}
+
+// Toggle the "operator token required" banner + highlight the token box. Called on any 401 and
+// on boot when no token is stored; cleared on the first successful operator-gated response.
+function setAuthNeeded(needed) {
+  const banner = document.getElementById("auth-banner");
+  const box = document.querySelector(".tokenbox");
+  if (banner) banner.classList.toggle("hidden", !needed);
+  if (box) box.classList.toggle("needs-token", needed);
 }
 
 const api = {
   async get(path) {
     const r = await fetch(path, { headers: { ...authHeaders() } });
     checkStatus(path, r);
+    setAuthNeeded(false); // a gated call succeeded → we're authenticated
     return r.json();
   },
   async post(path, body) {
     const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json", ...authHeaders() }, body: JSON.stringify(body || {}) });
     checkStatus(path, r);
+    setAuthNeeded(false);
     return r.json();
   },
 };
@@ -30,8 +45,7 @@ if (tokenInput) {
   tokenInput.value = getToken();
   tokenInput.addEventListener("change", () => {
     localStorage.setItem(TOKEN_KEY, tokenInput.value.trim());
-    loadNodes();
-    loadRuns();
+    refreshAll();
   });
 }
 
@@ -248,9 +262,13 @@ async function loadEvents() {
 document.getElementById("refresh-events")?.addEventListener("click", loadEvents);
 
 // --- boot ---
+function refreshAll() {
+  loadNodes();
+  loadRuns();
+  loadEvents();
+}
+setAuthNeeded(!getToken()); // prompt immediately when no token is stored
 pollHealth();
-loadNodes();
-loadRuns();
-loadEvents();
+refreshAll();
 setInterval(pollHealth, 10000);
 setInterval(loadNodes, 15000);

@@ -60,6 +60,20 @@ button:hover { filter: brightness(1.08); }
 .pill.fail { background: rgba(209,73,91,.15); color: var(--fail); }
 .muted { color: var(--muted); }
 .fail { color: var(--fail); }
+/* Auth banner + token-box highlight when the operator token is missing/rejected. */
+.banner {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--warn);
+  background: rgba(210, 153, 34, 0.12);
+  color: var(--text);
+  border-radius: 8px;
+}
+.banner.hidden { display: none; }
+.tokenbox.needs-token input {
+  border-color: var(--warn);
+  box-shadow: 0 0 0 2px rgba(210, 153, 34, 0.25);
+}
 .code, pre.code {
   background: #0b1119;
   border: 1px solid var(--line);

@@ -64,7 +64,9 @@ export function createRegistry({ store = null, heartbeatStaleMs = 120000 } = {})
       return upsert(nodeId, {
         lastHeartbeatAt: new Date().toISOString(),
         status: payload.status && NODE_STATUSES.includes(payload.status) ? payload.status : nodes.get(nodeId)?.status,
-        versions: payload.versions || nodes.get(nodeId)?.versions,
+        // Merge (don't replace): a heartbeat carrying a partial version set must not erase
+        // fields captured at `hello` (e.g. contracts/protocol/schema), which selection needs.
+        versions: { ...(nodes.get(nodeId)?.versions || {}), ...(payload.versions || {}) },
         metadata: payload.metadata || nodes.get(nodeId)?.metadata,
       });
     },

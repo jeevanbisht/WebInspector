@@ -20,6 +20,7 @@ import { createUpdater } from "../updater/apply-bundle.mjs";
 import { readInstalledVersion } from "../updater/version.mjs";
 import { createCommandRouter } from "../commands/index.mjs";
 import { isDownMessage } from "../../shared/protocol/control-channel.mjs";
+import { versionSnapshot } from "../../shared/contracts/versions.mjs";
 
 export async function main({ installRoot = process.env.WEBINSPECTOR_INSTALL_ROOT || defaultInstallRoot() } = {}) {
   const config = loadSupervisorConfig(installRoot);
@@ -71,7 +72,9 @@ export async function main({ installRoot = process.env.WEBINSPECTOR_INSTALL_ROOT
     getSnapshot: () => ({
       nodeType: identity.nodeType,
       status: workerManager.isDraining() ? "draining" : "ready",
-      versions: installedVersions,
+      // Report the FULL version set (contracts/protocol/schema too), consistent with `hello`,
+      // so the ControlPlane's selection compatibility gate stays satisfied across heartbeats.
+      versions: versionSnapshot(installedVersions),
       metadata: { worker: workerManager.status() },
     }),
   });

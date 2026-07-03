@@ -52,8 +52,10 @@ run orchestrator (queue → dispatch → results → comparison → complete) wi
 failure evidence with vendor/reference-ids/redirect-depth + screenshot/HAR links) and CSV
 (`reporting/final-report.mjs`), served at `GET /api/runs/:id/report.{html,csv}` from the store.
 
-**Wired:** the durable state store is on by default for the CLI (disk-backed localJson at
-`./state/db`; in-memory for embedded/test use) — runs/results/comparisons survive a restart.
+**Wired:** the durable state store is on by default for the CLI (persists under `./state/db`;
+in-memory for embedded/test use) — runs/results/comparisons survive a restart. Drivers:
+`sqlite` (built-in `node:sqlite`, indexed + transactional), `localjson`, or `memory`
+(`WEBINSPECTOR_STATE_DRIVER`).
 
 **Partial / TODO:** the per-site evidence packet does not yet verify/persist artifacts; the
-localJson adapter is single-instance (swap for SQLite/Postgres + a command bus to scale out).
+store is single-instance (a Postgres adapter + a command bus are the multi-instance step).

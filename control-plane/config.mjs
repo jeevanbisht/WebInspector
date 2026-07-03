@@ -60,6 +60,9 @@ export const DEFAULT_CONTROL_PLANE_CONFIG = Object.freeze({
     // a dir is configured (WEBINSPECTOR_STATE_DIR) or persist is turned on.
     persist: false,
     dir: null,
+    // Storage driver: null = auto (persist ? localjson : memory). "sqlite" (built-in node:sqlite,
+    // indexed + transactional) is the recommended durable driver; also "localjson" | "memory".
+    driver: null,
   },
 });
 
@@ -98,6 +101,9 @@ export function loadControlPlaneConfig(overrides = {}) {
   }
   if (overrides?.state?.persist === undefined && process.env.WEBINSPECTOR_STATE_PERSIST) {
     merged.state = { ...merged.state, persist: process.env.WEBINSPECTOR_STATE_PERSIST !== "0" };
+  }
+  if (!overrides?.state?.driver && process.env.WEBINSPECTOR_STATE_DRIVER) {
+    merged.state = { ...merged.state, driver: process.env.WEBINSPECTOR_STATE_DRIVER, persist: true };
   }
   return merged;
 }

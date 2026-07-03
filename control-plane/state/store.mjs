@@ -59,6 +59,9 @@ export function createStateStore(adapter) {
       assertTable(table);
       return adapter.delete(table, id);
     },
+    async close() {
+      await adapter.close?.();
+    },
   };
 }
 

@@ -33,6 +33,7 @@ import { createRunOrchestrator } from "../scheduler/run-orchestrator.mjs";
 import { createStateStore } from "../state/store.mjs";
 import { localJsonAdapter } from "../state/adapters/local-json.mjs";
 import { memoryAdapter } from "../state/adapters/memory.mjs";
+import { sqliteAdapter } from "../state/adapters/sqlite.mjs";
 import { createFinalReport } from "../reporting/final-report.mjs";
 
 export function createControlPlaneServer(overrides = {}) {
@@ -83,21 +84,24 @@ export function createControlPlaneServer(overrides = {}) {
       reconciler.start({ intervalMs: 5000 });
       return new Promise((resolve) => server.listen(port, host, () => resolve({ port, host })));
     },
-    close() {
+    async close() {
       reconciler.stop();
       channel.close();
-      return new Promise((resolve) => server.close(resolve));
+      await new Promise((resolve) => server.close(resolve));
+      await store?.close?.();
     },
   };
 }
 
-// Build the state store: an explicit override wins (may be null); otherwise a disk-backed store
-// when persistence is on, else in-memory. Persisted state survives a ControlPlane restart.
+// Build the state store: an explicit override wins (may be null); otherwise the configured
+// driver — sqlite/localjson (durable) or in-memory. Persisted state survives a restart.
 function buildStore(overrides, config) {
   if (overrides.store !== undefined) return overrides.store;
   const st = config.state || {};
   const dir = st.dir || `${config.paths.stateDir}/db`;
-  return createStateStore(st.persist ? localJsonAdapter(dir) : memoryAdapter());
+  const driver = st.driver || (st.persist ? "localjson" : "memory");
+  const adapter = driver === "sqlite" ? sqliteAdapter(dir) : driver === "localjson" ? localJsonAdapter(dir) : memoryAdapter();
+  return createStateStore(adapter);
 }
 
 // Load a cert+key pair for HTTPS when both file paths are configured; otherwise plain HTTP.

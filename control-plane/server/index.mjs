@@ -248,7 +248,7 @@ async function route(req, res, services) {
 
   // portal static
   if (method === "GET" && (pathname === "/" || pathname.startsWith("/assets/"))) {
-    return serveFile(res, pathname === "/" ? "../../portal/index.html" : `../../portal${pathname}`, contentTypeFor(pathname));
+    return serveFile(res, pathname === "/" ? "../../portal/index.html" : `../../portal${pathname}`, contentTypeFor(pathname === "/" ? "/index.html" : pathname));
   }
 
   return json(res, 404, { error: "not found", pathname });

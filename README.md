@@ -159,7 +159,7 @@ systemctl/kubectl execution is verified on those hosts; the command/unit builder
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 66
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 67
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -190,7 +190,7 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 
 ```bash
 npm install
-npm test                 # 66 integration tests
+npm test                 # 67 integration tests
 npm run control-plane    # single-port server (default :8787) → http://localhost:8787
 ```
 

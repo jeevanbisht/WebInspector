@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WebInspector — ControlPlane</title>
   <link rel="stylesheet" href="/assets/styles.css" />
+  <style>
+    .tokenbox { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #666; }
+    .tokenbox input { width: 200px; padding: 4px 6px; }
+    .row { display: flex; gap: 8px; align-items: center; margin: 10px 0; }
+    .row input { flex: 1; padding: 6px 8px; }
+  </style>
 </head>
 <body>
   <header>
@@ -15,6 +21,9 @@
       <button data-view="runs">Runs</button>
       <button data-view="events">Events</button>
     </nav>
+    <label class="tokenbox">Operator token
+      <input id="op-token" type="password" placeholder="bearer token" autocomplete="off" />
+    </label>
     <span id="health" class="pill">…</span>
   </header>
 
@@ -49,8 +58,17 @@
     </section>
 
     <section id="view-runs" class="view hidden">
-      <h2>Runs</h2>
-      <p class="muted">Queue URLs and watch arm progress. (Wired once ControlPlane run APIs land.)</p>
+      <div class="toolbar"><h2>Runs</h2><button id="refresh-runs">Refresh</button></div>
+      <div class="row">
+        <input id="run-url" type="text" placeholder="https://example.com" />
+        <button id="create-run">Queue URL</button>
+      </div>
+      <table id="runs-table">
+        <thead>
+          <tr><th>Run</th><th>Status</th><th>Created</th><th>URLs</th><th>Report</th></tr>
+        </thead>
+        <tbody><tr><td colspan="5" class="muted">no runs yet</td></tr></tbody>
+      </table>
     </section>
 
     <section id="view-events" class="view hidden">

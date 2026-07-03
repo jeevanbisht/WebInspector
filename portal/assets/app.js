@@ -1,17 +1,39 @@
 // Portal app. Static, dependency-free. Talks to the ControlPlane REST API on the same port.
+// Operator-gated /api/* calls carry the operator bearer token (kept in localStorage).
+
+const TOKEN_KEY = "wi_operator_token";
+const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
+// Split the scheme so no literal "Bearer <token>" appears in source.
+const authHeaders = () => (getToken() ? { authorization: "Bea" + "rer " + getToken() } : {});
+
+function checkStatus(path, r) {
+  if (r.status === 401) throw new Error("401 — set a valid operator token (top-right)");
+  if (!r.ok) throw new Error(`${path} → ${r.status}`);
+}
 
 const api = {
   async get(path) {
-    const r = await fetch(path);
-    if (!r.ok) throw new Error(`${path} → ${r.status}`);
+    const r = await fetch(path, { headers: { ...authHeaders() } });
+    checkStatus(path, r);
     return r.json();
   },
   async post(path, body) {
-    const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
-    if (!r.ok) throw new Error(`${path} → ${r.status}`);
+    const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json", ...authHeaders() }, body: JSON.stringify(body || {}) });
+    checkStatus(path, r);
     return r.json();
   },
 };
+
+// --- operator token ---
+const tokenInput = document.getElementById("op-token");
+if (tokenInput) {
+  tokenInput.value = getToken();
+  tokenInput.addEventListener("change", () => {
+    localStorage.setItem(TOKEN_KEY, tokenInput.value.trim());
+    loadNodes();
+    loadRuns();
+  });
+}
 
 // --- view switching ---
 document.querySelectorAll("nav button").forEach((b) =>
@@ -113,8 +135,70 @@ document.getElementById("issue-token").addEventListener("click", async () => {
   }
 });
 
+// --- runs ---
+async function loadRuns() {
+  const tbody = document.querySelector("#runs-table tbody");
+  if (!tbody) return;
+  try {
+    const { runs } = await api.get("/api/runs");
+    if (!runs?.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="muted">no runs yet — queue a URL above</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = runs
+      .map(
+        (r) => `<tr>
+          <td>${r.id}</td>
+          <td><span class="pill ${statusClass(r.status)}">${r.status || "?"}</span></td>
+          <td>${r.createdAt ? new Date(r.createdAt).toLocaleTimeString() : "—"}</td>
+          <td>${r.urlIds?.length ?? 0}</td>
+          <td class="actions"><button data-report="html" data-run="${r.id}">html</button> <button data-report="csv" data-run="${r.id}">csv</button></td>
+        </tr>`,
+      )
+      .join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="fail">${e.message}</td></tr>`;
+  }
+}
+
+// Reports are operator-gated, so fetch with the auth header and open a blob (a plain link
+// navigation can't send Authorization).
+async function openReport(runId, fmt) {
+  try {
+    const r = await fetch(`/api/runs/${encodeURIComponent(runId)}/report.${fmt}`, { headers: { ...authHeaders() } });
+    if (!r.ok) {
+      alert(`report → ${r.status}`);
+      return;
+    }
+    const url = URL.createObjectURL(await r.blob());
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+document.getElementById("create-run")?.addEventListener("click", async () => {
+  const input = document.getElementById("run-url");
+  const url = input.value.trim();
+  if (!url) return;
+  try {
+    await api.post("/api/runs", { urls: [url] });
+    input.value = "";
+    loadRuns();
+  } catch (e) {
+    alert(e.message);
+  }
+});
+document.getElementById("refresh-runs")?.addEventListener("click", loadRuns);
+document.querySelector("#runs-table")?.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-report]");
+  if (b) openReport(b.dataset.run, b.dataset.report);
+});
+
 // --- boot ---
 pollHealth();
 loadNodes();
+loadRuns();
 setInterval(pollHealth, 10000);
 setInterval(loadNodes, 15000);

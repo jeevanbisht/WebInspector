@@ -44,5 +44,9 @@ fallback), agent registry, command dispatcher, enrollment, data plane (bundle pu
 + artifact upload/serve), and the run orchestrator (queue → dispatch → results → comparison →
 complete) with the runs API (`POST /api/runs`, `POST /api/runs/:id/urls`, `GET /api/runs`, `GET /api/runs/:id`).
 
+**Implemented:** reporting renders the run model to HTML (per-URL arm matrix, node inventory,
+failure evidence with vendor/reference-ids/redirect-depth + screenshot/HAR links) and CSV
+(`reporting/final-report.mjs`, tested by `test/final-report.test.mjs`).
+
 **Partial / TODO:** the durable state store exists but is not wired on by default
-(in-memory today); reporting assembles a model but HTML/CSV rendering is a stub.
+(in-memory today); the per-site evidence packet does not yet verify/persist artifacts.

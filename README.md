@@ -153,7 +153,7 @@ intended mapping documented.
 
 ## Status
 
-Core mechanics are implemented and covered by an integration test suite (`npm test`, 24
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 28
 tests). This is well past scaffolding — a URL can flow through the whole system end to end.
 
 **Implemented + tested**
@@ -170,12 +170,12 @@ tests). This is well past scaffolding — a URL can flow through the whole syste
 | Remote reboot | Command + `bye` + await-reconnect (closes fully once the service host lands) |
 | Zero-touch onboarding | Control-plane side (enrollment) + Windows bootstrap install path |
 | Cross-platform provider | Windows implemented; Linux + Kubernetes stubbed with documented mapping |
+| Final report (HTML/CSV) | Per-URL arm matrix (Azure Direct / GSA_RNet / GSA_CLIENT / CloudFlare / External), classification + confidence, node inventory, and failure evidence (specific reason, vendor, reference IDs, redirect depth, screenshot/HAR links). Test: `test/final-report.test.mjs` |
 
 **Still stubbed / TODO**
 
 - Windows service host (nssm/winsw) so the supervisor + control-plane run as real services
 - Durable state store wired into the server by default (persist runs/results across restart)
-- Final report renderer (HTML/CSV) — model assembled, rendering is a stub
 - Linux + Kubernetes platform providers
 
 ## Quickstart

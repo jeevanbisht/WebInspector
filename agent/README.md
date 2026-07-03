@@ -31,3 +31,11 @@ Agent (supervisor) — it does not hold the control channel itself.
 Each job produces a result for its stage (`initial_test` or `browser_validation`) carrying
 the stage outcome, node metadata + version snapshot, and — via the control channel — only
 small summaries + `artifact_ref` / `result_ref` pointers. The bytes go on the data plane.
+
+## Implementation status
+
+- `probe/initial-test.mjs` — **implemented**: layered DNS/TCP/TLS/HTTP probe with redirect
+  chain, failure-layer classification, and edge/WAF vendor + reference-id detection.
+- `core/*`, `metadata/*`, `artifacts/upload.mjs` — **implemented** (stdio IPC + data-plane upload).
+- `browser/*` — **stub**: `browserValidate` returns a placeholder until the Playwright
+  validator is ported.

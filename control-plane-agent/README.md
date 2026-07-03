@@ -41,3 +41,13 @@ control connection.
 The supervisor reads `state/node-identity.json` (written by the bootstrap at enrollment) for
 its `controlPlaneUrl`, `nodeId`, and `nodeCredential`, and authenticates the control channel
 with them. The enrollment token itself is never stored or reused.
+
+## Implementation status
+
+**Implemented:** WebSocket control-channel client (reconnect + bounded outbox), register +
+heartbeat, idempotent command router, worker manager with stdio IPC (job delivery +
+ready/result + health gate + force-kill), and the updater (download + verify + atomic A/B
+swap + health-gate + rollback). The Windows platform provider is implemented.
+
+**TODO:** running the supervisor as a real OS service (service host), and the Linux +
+Kubernetes platform providers.

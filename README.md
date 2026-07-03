@@ -153,5 +153,46 @@ intended mapping documented.
 
 ## Status
 
-Scaffold only. Each module is a stub that documents its intended contract. See the
-per-component `README.md` files for responsibilities and build order.
+Core mechanics are implemented and covered by an integration test suite (`npm test`, 10
+tests). This is well past scaffolding — a URL can flow through the whole system end to end.
+
+**Implemented + tested**
+
+| Area | State |
+| --- | --- |
+| Control channel (single port, WebSocket) | Auth, register, heartbeat, bidirectional commands + results. Test: `test/control-channel.test.mjs` |
+| Data plane (content-addressed) | Publish/stream bundles, upload/serve artifacts (SHA-256 verified), result ingest. Test: `test/data-plane.test.mjs` |
+| Worker IPC (supervisor ↔ worker over stdio) | Job delivery + ready/result + health gate + force-kill on stop. Test: `test/worker-ipc.test.mjs` |
+| Run pipeline (queue → dispatch → compare → complete) | Orchestrator, browser-validation branch, classification, runs API. Test: `test/run-pipeline.test.mjs` |
+| Layered initial probe | DNS/TCP/TLS/HTTP with redirect chain, failure-layer classification, vendor/reference-id detection. Test: `test/probe.test.mjs` |
+| Central updates | Bundle registry, canary reconciler, verify + atomic A/B swap + health-gate + rollback |
+| Remote reboot | Command + `bye` + await-reconnect (closes fully once the service host lands) |
+| Zero-touch onboarding | Control-plane side (enrollment) + Windows bootstrap install path |
+| Cross-platform provider | Windows implemented; Linux + Kubernetes stubbed with documented mapping |
+
+**Still stubbed / TODO**
+
+- Browser validation (`agent/browser/*`) — Playwright validator not yet ported (placeholder)
+- Long-poll fallback for the control channel (restrictive networks)
+- Windows service host (nssm/winsw) so the supervisor + control-plane run as real services
+- Durable state store wired into the server by default (persist runs/results across restart)
+- Final report renderer (HTML/CSV) — model assembled, rendering is a stub
+- Linux + Kubernetes platform providers
+
+## Quickstart
+
+```bash
+npm install
+npm test                 # 10 integration tests
+npm run control-plane    # single-port server (default :8787) → http://localhost:8787
+```
+
+Onboard a node (zero-touch): issue an enrollment token in the Portal, then on the VM run
+`iwr http://<cp>:8787/bootstrap/install.ps1 | iex` (see "Zero-touch onboarding" above).
+
+## Continuing the build
+
+Remaining work is under "Still stubbed / TODO"; the natural next steps are the browser
+validator, the long-poll fallback, and the Windows service host. Every component's
+`README.md` documents its contract, and the `test/` suite is the fastest way to see the
+implemented behavior in action.

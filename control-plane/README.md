@@ -36,3 +36,13 @@ state ── registry ── dispatcher ─┐
 ```
 
 Single port; the plane split is by endpoint, not by port (see the root README).
+
+## Implementation status
+
+**Implemented + tested:** single-port server, WebSocket control channel, agent registry,
+command dispatcher, enrollment, data plane (bundle publish/stream + artifact upload/serve),
+and the run orchestrator (queue → dispatch → results → comparison → complete) with the runs
+API (`POST /api/runs`, `POST /api/runs/:id/urls`, `GET /api/runs`, `GET /api/runs/:id`).
+
+**Partial / TODO:** the durable state store exists but is not wired on by default
+(in-memory today); reporting assembles a model but HTML/CSV rendering is a stub.

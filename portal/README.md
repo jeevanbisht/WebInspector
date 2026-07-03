@@ -20,5 +20,5 @@ Operator web UI, served by the ControlPlane on the same single port (`GET /`,
 | `assets/app.js` | Fetches `/api/*`, renders, polls, and issues commands. |
 | `assets/styles.css` | Minimal styling. |
 
-This is a scaffold: `app.js` wires the Nodes + Onboarding calls; Runs/Events are stubbed
-pending the corresponding ControlPlane APIs.
+This is a scaffold: `app.js` wires the Nodes + Onboarding calls. The ControlPlane runs API
+(`/api/runs*`) now exists, but the Portal Runs/Events views are not yet wired to it.

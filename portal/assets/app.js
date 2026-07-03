@@ -64,6 +64,7 @@ function actionButtons(node) {
   return `
     <button data-act="reboot" data-node="${n}">Reboot</button>
     <button data-act="drain" data-node="${n}">Drain</button>
+    <button data-act="undrain" data-node="${n}">Undrain</button>
     <button data-act="restart_worker" data-node="${n}">Restart worker</button>`;
 }
 
@@ -105,11 +106,20 @@ document.querySelector("#nodes-table").addEventListener("click", async (e) => {
   if (!btn) return;
   const node = decodeURIComponent(btn.dataset.node);
   const act = btn.dataset.act;
-  if (act === "reboot" && !confirm(`Reboot ${node}?`)) return;
+  const n = encodeURIComponent(node);
+  // Each action maps to an operator-gated endpoint the ControlPlane dispatches to the node.
+  const routes = {
+    reboot: [`/api/nodes/${n}/reboot`, { reason: "portal" }],
+    drain: [`/api/nodes/${n}/drain`, {}],
+    undrain: [`/api/nodes/${n}/undrain`, {}],
+    restart_worker: [`/api/nodes/${n}/restart-worker`, {}],
+  };
+  const confirms = { reboot: `Reboot ${node}?`, drain: `Drain ${node}? (stops taking new jobs)` };
+  if (confirms[act] && !confirm(confirms[act])) return;
+  const target = routes[act];
+  if (!target) return alert(`unknown action: ${act}`);
   try {
-    // TODO: dedicated endpoints per action; reboot is wired server-side today.
-    if (act === "reboot") await api.post(`/api/nodes/${encodeURIComponent(node)}/reboot`, { reason: "portal" });
-    else alert(`${act} endpoint not wired yet`);
+    await api.post(target[0], target[1]);
     loadNodes();
   } catch (err) {
     alert(err.message);
@@ -125,11 +135,20 @@ document.getElementById("issue-token").addEventListener("click", async () => {
   try {
     const { token } = await api.post("/api/enrollment-tokens", { nodeType });
     const url = location.origin;
+    // Git-based onboarding that works against this deployment (no pre-published bundle needed).
+    // The -k / TOFU on the fetch tolerates the self-signed cert; the installer then pins it.
     pre.textContent =
+      `# Linux — run on the fresh VM as root:\n` +
+      `export WEBINSPECTOR_CONTROLPLANE_URL='${url}'\n` +
+      `export WEBINSPECTOR_ENROLLMENT_TOKEN='${token}'\n` +
+      `export WEBINSPECTOR_NODE_TYPE='${nodeType}'\n` +
+      `curl -fsSLk "${url}/bootstrap/install-agent.sh" | sudo -E bash\n` +
+      `\n` +
+      `# Windows — Administrator PowerShell (needs Node.js + git installed):\n` +
       `$env:WEBINSPECTOR_CONTROLPLANE_URL='${url}'\n` +
       `$env:WEBINSPECTOR_ENROLLMENT_TOKEN='${token}'\n` +
       `$env:WEBINSPECTOR_NODE_TYPE='${nodeType}'\n` +
-      `iwr ${url}/bootstrap/install.ps1 | iex`;
+      `iwr -UseBasicParsing ${url}/bootstrap/install-agent.ps1 | iex`;
   } catch (e) {
     pre.textContent = `error: ${e.message}`;
   }

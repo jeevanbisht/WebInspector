@@ -170,6 +170,16 @@ async function route(req, res, services) {
   if (method === "GET" && pathname === "/bootstrap/install.ps1") return serveFile(res, "../../bootstrap/windows/install.ps1", "text/plain");
   if (method === "GET" && pathname === "/bootstrap/install.sh") return serveFile(res, "../../bootstrap/linux/install.sh", "text/x-shellscript");
   if (method === "GET" && pathname === "/bootstrap/bootstrap.mjs") return serveFile(res, "../../bootstrap/bootstrap.mjs", "text/javascript");
+  // Git-based onboarding (works without a pre-published supervisor bundle): install-agent.{sh,ps1}.
+  if (method === "GET" && pathname === "/bootstrap/install-agent.sh") return serveFile(res, "../../bootstrap/linux/install-agent.sh", "text/x-shellscript");
+  if (method === "GET" && pathname === "/bootstrap/install-agent.ps1") return serveFile(res, "../../bootstrap/windows/install-agent.ps1", "text/plain");
+  // Public: the ControlPlane's TLS certificate — a CA to PIN, not a secret — so a bootstrapping
+  // agent can trust the self-signed control channel (wss) without an out-of-band cert transfer.
+  if (method === "GET" && pathname === "/bootstrap/ca.pem") {
+    const certFile = services.config.server?.tls?.certFile;
+    if (!certFile) return json(res, 404, { error: "no TLS certificate configured (plain HTTP)" });
+    return serveFile(res, certFile, "application/x-pem-file");
+  }
 
   // enrollment
   if (method === "POST" && pathname === "/api/enrollment-tokens") {
@@ -254,6 +264,23 @@ async function route(req, res, services) {
     if (!requireOperator()) return;
     const nodeName = decodeURIComponent(pathname.split("/")[3]);
     return json(res, 202, await services.reboot.reboot(nodeName, await readJson(req).catch(() => ({}))));
+  }
+  // node lifecycle commands (Portal → agent): drain / undrain / restart-worker. The supervisor's
+  // command router already implements these verbs; the ControlPlane just dispatches them down the
+  // control channel and returns the commandId (result is reported back asynchronously).
+  if (method === "POST" && pathname.startsWith("/api/nodes/")) {
+    const parts = pathname.split("/"); // ['', api, nodes, name, action]
+    const verbFor = { drain: "drain", undrain: "undrain", "restart-worker": "restart_worker" };
+    if (parts.length === 5 && verbFor[parts[4]]) {
+      if (!requireOperator()) return;
+      const nodeName = decodeURIComponent(parts[3]);
+      try {
+        const commandId = await services.dispatcher.sendCommand(nodeName, verbFor[parts[4]]);
+        return json(res, 202, { nodeName, action: verbFor[parts[4]], commandId });
+      } catch (e) {
+        return json(res, 409, { error: e.message }); // node has no live control-channel session
+      }
+    }
   }
 
   // data plane

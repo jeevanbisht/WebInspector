@@ -7,78 +7,132 @@
   <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body>
-  <header>
-    <h1>WebInspector <span class="muted">ControlPlane</span></h1>
-    <nav>
-      <button data-view="nodes" class="active">Nodes</button>
-      <button data-view="onboarding">Onboarding</button>
-      <button data-view="runs">Runs</button>
-      <button data-view="events">Events</button>
-    </nav>
-    <label class="tokenbox">Operator token
-      <input id="op-token" type="password" placeholder="bearer token" autocomplete="off" />
-    </label>
-    <span id="health" class="pill">…</span>
-  </header>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">🛰️ <span>WebInspector</span></div>
+      <nav>
+        <button data-view="overview" class="active">Overview</button>
+        <button data-view="nodes">Nodes</button>
+        <button data-view="onboarding">Onboarding</button>
+        <button data-view="runs">Runs</button>
+        <button data-view="events">Events</button>
+      </nav>
+    </aside>
 
-  <main>
-    <div id="auth-banner" class="banner hidden">
-      🔑 <strong>Operator token required.</strong> Paste your token in the box at the top-right to load nodes, runs, and events.
+    <div class="main-col">
+      <div class="topbar">
+        <div class="topbar-title muted">ControlPlane</div>
+        <div class="topbar-controls">
+          <label class="tokenbox">Operator token
+            <input id="op-token" type="password" placeholder="bearer token" autocomplete="off" />
+          </label>
+          <span id="health" class="pill">…</span>
+        </div>
+      </div>
+
+      <main>
+        <div id="auth-banner" class="banner hidden">
+          🔑 <strong>Operator token required.</strong> Paste your token at the top-right to load nodes, runs, and events.
+        </div>
+
+        <section id="view-overview" class="view">
+          <h2>Overview</h2>
+          <p class="muted" id="overview-subtitle">Across your fleet · Nodes, runs, and events</p>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Nodes</div>
+              <div class="stat-value" id="stat-nodes">—</div>
+              <div class="stat-sub muted" id="stat-nodes-sub">&nbsp;</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Healthy</div>
+              <div class="stat-value" id="stat-healthy">—</div>
+              <div class="stat-sub muted">ready / connected</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Need attention</div>
+              <div class="stat-value stat-value-fail" id="stat-attention">—</div>
+              <div class="stat-sub muted">nodes not ready</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Runs</div>
+              <div class="stat-value" id="stat-runs">—</div>
+              <div class="stat-sub muted" id="stat-runs-sub">&nbsp;</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Events</div>
+              <div class="stat-value" id="stat-events">—</div>
+              <div class="stat-sub muted">last 100</div>
+            </div>
+          </div>
+
+          <div class="panels-grid">
+            <div class="panel">
+              <div class="toolbar"><h3>Needs attention</h3></div>
+              <div id="attention-list" class="muted">loading…</div>
+            </div>
+            <div class="panel">
+              <div class="toolbar"><h3>Recent runs</h3></div>
+              <div id="recent-runs-list" class="muted">loading…</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-nodes" class="view hidden">
+          <div class="toolbar">
+            <h2>Nodes</h2>
+            <button id="refresh-nodes">Refresh</button>
+          </div>
+          <table id="nodes-table">
+            <thead>
+              <tr><th>Node</th><th>Type</th><th>Status</th><th>Version</th><th>IP</th><th>Heartbeat</th><th>Actions</th></tr>
+            </thead>
+            <tbody><tr><td colspan="7" class="muted">loading…</td></tr></tbody>
+          </table>
+        </section>
+
+        <section id="view-onboarding" class="view hidden">
+          <h2>Onboard a VM (zero-touch)</h2>
+          <label>Node type
+            <select id="enroll-type">
+              <option>azure_direct</option>
+              <option>gsa_remotenet</option>
+              <option>gsa_client</option>
+              <option>cloudflare_client</option>
+              <option>external_direct</option>
+            </select>
+          </label>
+          <button id="issue-token">Issue enrollment token</button>
+          <p class="muted">Copy the one-liner for the target OS and run it on the fresh VM. Token is short-lived and single-use.</p>
+          <pre id="enroll-cmd" class="code">…</pre>
+        </section>
+
+        <section id="view-runs" class="view hidden">
+          <div class="toolbar"><h2>Runs</h2><button id="refresh-runs">Refresh</button></div>
+          <div class="row">
+            <input id="run-url" type="text" placeholder="https://example.com" />
+            <button id="create-run">Queue URL</button>
+          </div>
+          <table id="runs-table">
+            <thead>
+              <tr><th>Run</th><th>Status</th><th>Created</th><th>URLs</th><th>Report</th></tr>
+            </thead>
+            <tbody><tr><td colspan="5" class="muted">no runs yet</td></tr></tbody>
+          </table>
+        </section>
+
+        <section id="view-events" class="view hidden">
+          <div class="toolbar"><h2>Events</h2><button id="refresh-events">Refresh</button></div>
+          <table id="events-table">
+            <thead>
+              <tr><th>Time</th><th>Type</th><th>Node</th><th>Run</th><th>Detail</th></tr>
+            </thead>
+            <tbody><tr><td colspan="5" class="muted">no events yet</td></tr></tbody>
+          </table>
+        </section>
+      </main>
     </div>
-
-    <section id="view-nodes" class="view">
-      <div class="toolbar">
-        <h2>Nodes</h2>
-        <button id="refresh-nodes">Refresh</button>
-      </div>
-      <table id="nodes-table">
-        <thead>
-          <tr><th>Node</th><th>Type</th><th>Status</th><th>Version</th><th>IP</th><th>Heartbeat</th><th>Actions</th></tr>
-        </thead>
-        <tbody><tr><td colspan="7" class="muted">loading…</td></tr></tbody>
-      </table>
-    </section>
-
-    <section id="view-onboarding" class="view hidden">
-      <h2>Onboard a VM (zero-touch)</h2>
-      <label>Node type
-        <select id="enroll-type">
-          <option>azure_direct</option>
-          <option>gsa_remotenet</option>
-          <option>gsa_client</option>
-          <option>cloudflare_client</option>
-          <option>external_direct</option>
-        </select>
-      </label>
-      <button id="issue-token">Issue enrollment token</button>
-      <p class="muted">Copy the one-liner for the target OS and run it on the fresh VM. Token is short-lived and single-use.</p>
-      <pre id="enroll-cmd" class="code">…</pre>
-    </section>
-
-    <section id="view-runs" class="view hidden">
-      <div class="toolbar"><h2>Runs</h2><button id="refresh-runs">Refresh</button></div>
-      <div class="row">
-        <input id="run-url" type="text" placeholder="https://example.com" />
-        <button id="create-run">Queue URL</button>
-      </div>
-      <table id="runs-table">
-        <thead>
-          <tr><th>Run</th><th>Status</th><th>Created</th><th>URLs</th><th>Report</th></tr>
-        </thead>
-        <tbody><tr><td colspan="5" class="muted">no runs yet</td></tr></tbody>
-      </table>
-    </section>
-
-    <section id="view-events" class="view hidden">
-      <div class="toolbar"><h2>Events</h2><button id="refresh-events">Refresh</button></div>
-      <table id="events-table">
-        <thead>
-          <tr><th>Time</th><th>Type</th><th>Node</th><th>Run</th><th>Detail</th></tr>
-        </thead>
-        <tbody><tr><td colspan="5" class="muted">no events yet</td></tr></tbody>
-      </table>
-    </section>
-  </main>
+  </div>
 
   <script src="/assets/app.js" type="module"></script>
 </body>

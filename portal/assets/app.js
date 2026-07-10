@@ -50,9 +50,9 @@ if (tokenInput) {
 }
 
 // --- view switching ---
-document.querySelectorAll("nav button").forEach((b) =>
+document.querySelectorAll(".sidebar nav button").forEach((b) =>
   b.addEventListener("click", () => {
-    document.querySelectorAll("nav button").forEach((x) => x.classList.remove("active"));
+    document.querySelectorAll(".sidebar nav button").forEach((x) => x.classList.remove("active"));
     b.classList.add("active");
     document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
     document.getElementById(`view-${b.dataset.view}`).classList.remove("hidden");
@@ -98,10 +98,52 @@ function nodeVersion(n) {
   return !s || a === s ? a || s : `${a} / ${s}`;
 }
 
+let lastNodes = [];
+let lastRuns = [];
+let lastEvents = [];
+
+// --- overview ---
+function renderOverview() {
+  const nodes = lastNodes;
+  const runs = lastRuns;
+  const healthy = nodes.filter((n) => ["ready", "connected"].includes(n.status)).length;
+  const attention = nodes.filter((n) => !["ready", "connected"].includes(n.status));
+
+  document.getElementById("stat-nodes").textContent = nodes.length;
+  document.getElementById("stat-nodes-sub").textContent = nodes.length ? `${healthy} healthy` : "\u00a0";
+  document.getElementById("stat-healthy").textContent = nodes.length ? `${Math.round((healthy / nodes.length) * 100)}%` : "—";
+  document.getElementById("stat-attention").textContent = attention.length;
+  document.getElementById("stat-runs").textContent = runs.length;
+  const running = runs.filter((r) => statusClass(r.status) === "warn").length;
+  document.getElementById("stat-runs-sub").textContent = runs.length ? `${running} running` : "\u00a0";
+  document.getElementById("stat-events").textContent = lastEvents.length;
+
+  const attentionEl = document.getElementById("attention-list");
+  attentionEl.innerHTML = attention.length
+    ? attention
+        .map(
+          (n) => `<div class="list-row"><span>${n.nodeName || "?"} <span class="muted">· ${n.nodeType || "?"}</span></span><span class="pill ${statusClass(n.status)}">${n.status || "?"}</span></div>`,
+        )
+        .join("")
+    : `<div class="muted">All nodes healthy.</div>`;
+
+  const runsEl = document.getElementById("recent-runs-list");
+  const recent = [...runs].slice(-5).reverse();
+  runsEl.innerHTML = recent.length
+    ? recent
+        .map(
+          (r) => `<div class="list-row"><span>${r.id}</span><span class="pill ${statusClass(r.status)}">${r.status || "?"}</span></div>`,
+        )
+        .join("")
+    : `<div class="muted">No runs yet.</div>`;
+}
+
 async function loadNodes() {
   const tbody = document.querySelector("#nodes-table tbody");
   try {
     const { nodes } = await api.get("/api/nodes");
+    lastNodes = nodes || [];
+    renderOverview();
     if (!nodes?.length) {
       tbody.innerHTML = `<tr><td colspan="7" class="muted">no nodes registered yet — onboard one from the Onboarding tab</td></tr>`;
       return;
@@ -189,6 +231,8 @@ async function loadRuns() {
   if (!tbody) return;
   try {
     const { runs } = await api.get("/api/runs");
+    lastRuns = runs || [];
+    renderOverview();
     if (!runs?.length) {
       tbody.innerHTML = `<tr><td colspan="5" class="muted">no runs yet — queue a URL above</td></tr>`;
       return;
@@ -254,6 +298,8 @@ async function loadEvents() {
   if (!tbody) return;
   try {
     const { events } = await api.get("/api/events?limit=100");
+    lastEvents = events || [];
+    renderOverview();
     if (!events?.length) {
       tbody.innerHTML = `<tr><td colspan="5" class="muted">no events yet</td></tr>`;
       return;
